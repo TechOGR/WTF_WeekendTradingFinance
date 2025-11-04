@@ -122,11 +122,23 @@ python main.py
 - **🤖 Consejo del día**: Recomendaciones diarias personalizadas
 - **📋 Resumen semanal**: Análisis completo cada semana
 
+### 📤 Exportación Profesional
+- **📊 Excel (.xlsx)**: Con gráficos y formato profesional
+- **📋 CSV**: Datos sin procesar para análisis externo
+- **📄 JSON**: Formato estructurado para integraciones
+- **🎨 Estilos adaptativos**: Se ajustan al tema actual
+
 ### 🎨 Personalización
 - **🌓 Cambiar tema**: `Vista → Modo Oscuro` (Ctrl+T)
 - **💾 Guardar datos**: `Archivo → Guardar Semana` (Ctrl+S)
 - **📂 Cargar semana**: `Archivo → Cargar Semana` (Ctrl+O)
 - **🔄 Actualizar BD**: `Archivo → Cargar desde Base de Datos`
+
+### 📤 Exportación de Datos
+- **📊 Exportar Excel**: `Exportar → Excel` (Ctrl+E)
+- **📋 Exportar CSV**: `Exportar → CSV` (Ctrl+Shift+C)
+- **📄 Exportar JSON**: `Exportar → JSON` (Ctrl+Shift+J)
+- **📈 Incluye gráficos**: Los archivos Excel incluyen gráficos profesionales
 
 ---
 
@@ -154,8 +166,12 @@ W-T-F ( Weekend Trading Finance )/
 │   ├── 📁 styles/                 # Temas y estilos
 │   │   └── 🎨 themes.py          # Gestor de temas dinámicos
 │   │
-│   └── 📁 utils/                  # Utilidades
-│       └── 💡 advice.py          # Generador de consejos
+│   ├── 📁 utils/                  # Utilidades
+  │   ├── 💡 advice.py          # Generador de consejos
+  │   └── 📤 export_manager.py   # Sistema de exportación
+  │
+  ├── 📁 dialogs/                # Diálogos modulares
+  │   └── 📤 export_dialog.py    # Diálogo de exportación
 │
 ├── 🚀 main.py                     # Punto de entrada principal
 ├── 📋 requirements.txt            # Dependencias del proyecto
@@ -177,6 +193,8 @@ W-T-F ( Weekend Trading Finance )/
 | ![Pandas](https://img.shields.io/badge/Pandas-2.0.3-red) | 2.0.3 | Procesamiento de datos |
 | ![NumPy](https://img.shields.io/badge/NumPy-1.24.3-yellow) | 1.24.3 | Cálculos numéricos |
 | ![SQLite](https://img.shields.io/badge/SQLite-Embedded-lightgrey) | Embedded | Base de datos local |
+| ![OpenPyXL](https://img.shields.io/badge/OpenPyXL-3.1.2-green) | 3.1.2 | Exportación Excel |
+| ![XlsxWriter](https://img.shields.io/badge/XlsxWriter-3.1.9-blue) | 3.1.9 | Formato Excel avanzado |
 
 </div>
 
@@ -216,8 +234,8 @@ W-T-F ( Weekend Trading Finance )/
 
 ## 🚀 Próximas Características (Roadmap 2024)
 
-### 🎯 Versión 2.1 - Próximamente
-- [ ] 📊 **Exportación Excel/CSV**: Comparte tus análisis
+### 🎯 Versión 2.1 - ✅ Implementada
+- [x] 📊 **Exportación Excel/CSV/JSON**: Comparte tus análisis con un clic
 - [ ] 🏦 **Múltiples cuentas**: Gestiona varios portafolios
 - [ ] 📈 **Análisis histórico**: Tendencias a largo plazo
 - [ ] 🔔 **Notificaciones inteligentes**: Alertas personalizadas
@@ -225,8 +243,9 @@ W-T-F ( Weekend Trading Finance )/
 ### 🔮 Versión 2.2 - En Planificación
 - [ ] 🌐 **Modo web**: Acceso desde cualquier dispositivo
 - [ ] 📱 **App móvil**: Sincronización con escritorio
-- [ ] 🤝 **APIs de trading**: Integración con plataformas reales
 - [ ] 🌍 **Multi-idioma**: Soporte para más idiomas
+
+> Nota: La integración con **APIs de trading** ha sido descartada de la versión 2.2 por decisión de alcance. Nos enfocamos en modo web, app móvil y multi-idioma.
 
 ---
 

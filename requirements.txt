@@ -1,5 +1,5 @@
 # W-T-F (Weekend Trading Finance) Trading Manager - Requisitos
-# Versión 2.0 - Código Modular
+# Versión 2.1 - Con Exportación Excel/CSV y Notificaciones
 
 # Framework GUI
 PyQt5>=5.15.0
@@ -9,8 +9,13 @@ pandas>=1.3.0
 matplotlib>=3.4.0
 numpy>=1.21.0
 
+# Exportación Excel/CSV (Versión 2.1)
+openpyxl>=3.0.9          # Para exportación a Excel (.xlsx)
+xlsxwriter>=3.0.0        # Alternativa para Excel con mejor formato
+
 # Base de datos (SQLite viene incluido con Python)
 # sqlite3 (módulo estándar de Python)
 
 # Utilidades
 python-dateutil>=2.8.0
+

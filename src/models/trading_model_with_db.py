@@ -170,3 +170,16 @@ class TradingDataModelWithDB(TradingDataModel):
         self.initial_capital = max(0.0, capital)  # Asegurar que no sea negativo
         # Guardar automáticamente en la base de datos
         self.db_manager.save_weekly_data(self.to_dict())
+    
+    def get_weekly_data(self):
+        """Obtener todos los datos de la semana actual para exportación"""
+        return {
+            'days': self.days,
+            'daily_amounts': self.daily_amounts.copy(),
+            'daily_destinations': self.daily_destinations.copy(),
+            'initial_capital': self.initial_capital,
+            'week_start_date': self.week_start_date.isoformat(),
+            'current_balance': self.get_current_balance(),
+            'total_profit_loss': self.get_total_profit_loss(),
+            'profit_loss_percentage': self.get_profit_loss_percentage()
+        }

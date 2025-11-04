@@ -5,6 +5,7 @@ Widget de tabla para la interfaz de trading
 from PyQt5.QtWidgets import (QTableWidget, QTableWidgetItem, QHeaderView)
 from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtGui import QFont, QBrush, QColor
+from src.utils.i18n import tr
 
 class TradingTableWidget(QTableWidget):
     """Tabla personalizada para mostrar y editar datos de trading"""
@@ -24,7 +25,11 @@ class TradingTableWidget(QTableWidget):
         self.setRowCount(5)
         
         # Configurar encabezados
-        self.setHorizontalHeaderLabels(['Día', 'Ganancia/Pérdida ($)', 'Destino'])
+        self.setHorizontalHeaderLabels([
+            tr('day_column'),
+            tr('amount_column'),
+            tr('destination_column')
+        ])
         
         # Configurar encabezado vertical
         self.verticalHeader().setVisible(False)
@@ -73,7 +78,7 @@ class TradingTableWidget(QTableWidget):
             dest_item.setFlags(dest_item.flags() & ~Qt.ItemIsEditable)  # No editable
             
             # Colorear destinos
-            if destination == "Retiro Personal":
+            if destination in {"Retiro Personal", "Personal Withdrawal", tr('personal_withdrawal')}:
                 dest_item.setForeground(QBrush(QColor("#3498db")))
             else:
                 dest_item.setForeground(QBrush(QColor("#f39c12")))
@@ -97,18 +102,18 @@ class TradingTableWidget(QTableWidget):
                 
                 # Emitir señales de cambio
                 self.data_changed.emit()
-                self.save_status_changed.emit("💾 Guardando...")
+                self.save_status_changed.emit(tr('saving'))
                 
                 # Recargar datos para actualizar colores
                 self.load_data()
                 
                 # Emitir señal de guardado completado
-                self.save_status_changed.emit("✅ Guardado")
+                self.save_status_changed.emit(tr('save_success'))
                 
             except ValueError:
                 # Si no es un número válido, restaurar el valor anterior
                 self.load_data()
-                print(f"Valor inválido ingresado: {text}")
+                print(f"{tr('invalid_amount')}: {text}")
     
     def get_data(self):
         """Obtener los datos actuales de la tabla"""
@@ -121,3 +126,13 @@ class TradingTableWidget(QTableWidget):
                 amount = 0.0
             data[day] = amount
         return data
+
+    def apply_language(self):
+        """Actualizar encabezados y textos según el idioma actual"""
+        self.setHorizontalHeaderLabels([
+            tr('day_column'),
+            tr('amount_column'),
+            tr('destination_column')
+        ])
+        # Recargar para reflejar posibles cambios visibles
+        self.load_data()

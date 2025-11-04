@@ -17,10 +17,12 @@ from src.ui.trading_table import TradingTableWidget
 from src.ui.summary_panel import SummaryPanel
 from src.ui.enhanced_chart_widget import EnhancedChartWidget
 from src.ui.capital_dialog import CapitalDialog
+from src.ui.export_dialog import show_export_dialog
 from src.models.trading_model_with_db import TradingDataModelWithDB
 from src.models.ai_analyzer import AIAnalyzer
 from src.styles.themes import ThemeManager
 from src.utils.advice import get_daily_advice, get_weekly_summary_message
+from src.utils.i18n import tr, set_language
 
 class MainWindow(QMainWindow):
     """Ventana principal de la aplicación W-T-F Trading Manager"""
@@ -36,7 +38,7 @@ class MainWindow(QMainWindow):
     
     def setup_ui(self):
         """Configurar la interfaz de usuario principal"""
-        self.setWindowTitle("W-T-F (Weekend Trading Finance) Trading Manager v2.0")
+        self.setWindowTitle(tr("app_title"))
         self.setGeometry(100, 100, 1400, 900)
         
         # Crear modelo de datos
@@ -89,7 +91,7 @@ class MainWindow(QMainWindow):
         # Barra de estado
         self.status_bar = QStatusBar()
         self.setStatusBar(self.status_bar)
-        self.status_bar.showMessage("✅ Listo")
+        self.status_bar.showMessage("✅ " + tr("loading"))
         
         # Aplicar tema inicial (claro)
         self.apply_theme(False)
@@ -107,6 +109,11 @@ class MainWindow(QMainWindow):
         self.menu_bar.theme_changed.connect(self.apply_theme)
         self.menu_bar.show_daily_advice_triggered.connect(self.show_daily_advice)
         self.menu_bar.show_weekly_summary_triggered.connect(self.show_weekly_summary_notification)
+        self.menu_bar.export_excel_triggered.connect(self.export_to_excel)
+        self.menu_bar.export_csv_triggered.connect(self.export_to_csv)
+        self.menu_bar.export_json_triggered.connect(self.export_to_json)
+        # Cambio de idioma desde la barra de menú
+        self.menu_bar.language_changed.connect(self.on_language_changed)
         
         # Conexiones de la tabla
         self.table_widget.data_changed.connect(self.on_data_changed)
@@ -194,9 +201,9 @@ class MainWindow(QMainWindow):
                     pass
                 
         except Exception as e:
-            QMessageBox.warning(self, "Advertencia", 
-                              f"No se pudieron cargar datos iniciales: {str(e)}\n"
-                              "Comenzando con datos nuevos.")
+            QMessageBox.warning(self, tr("warning"), 
+                              f"{tr('load_error')}: {str(e)}\n"
+                              f"{tr('operation_failed')}.")
             # Asegurar que el gráfico se actualice incluso si hay error
             self.update_chart()
     
@@ -214,7 +221,7 @@ class MainWindow(QMainWindow):
             self.data_model.save_current_week()
             
         except Exception as e:
-            QMessageBox.critical(self, "Error", f"Error al procesar cambios: {str(e)}")
+            QMessageBox.critical(self, tr("error"), f"{tr('operation_failed')}: {str(e)}")
     
     def update_chart(self):
         """Actualizar el gráfico con datos actuales"""
@@ -272,7 +279,7 @@ class MainWindow(QMainWindow):
         try:
             advice = get_daily_advice(self.data_model)
             self.summary_panel.update_daily_advice(advice)
-            self.status_bar.showMessage("📌 Consejo del día actualizado", 3000)
+            self.status_bar.showMessage("📌 " + tr("daily_advice"), 3000)
         except Exception as e:
             print(f"Error al generar consejo del día: {e}")
 
@@ -280,9 +287,20 @@ class MainWindow(QMainWindow):
         """Mostrar notificación de resumen semanal (útil para sábados)."""
         try:
             message = get_weekly_summary_message(self.data_model)
-            QMessageBox.information(self, "Resumen semanal", message)
+            QMessageBox.information(self, tr("weekly_summary_panel"), message)
         except Exception as e:
-            QMessageBox.warning(self, "Aviso", f"No se pudo generar resumen semanal: {e}")
+            QMessageBox.warning(self, tr("warning"), f"{tr('operation_failed')}: {e}")
+    
+    def on_language_changed(self, lang: str):
+        """Actualizar textos y re-traducir widgets principales."""
+        # Actualizar título de la ventana
+        self.setWindowTitle(tr("app_title"))
+        # Retraducir tabla de trading
+        if hasattr(self.table_widget, 'apply_language'):
+            self.table_widget.apply_language()
+        # Retraducir panel de resumen
+        if hasattr(self.summary_panel, 'apply_language'):
+            self.summary_panel.apply_language()
     
     @pyqtSlot(str)
     def update_save_status(self, status):
@@ -306,7 +324,7 @@ class MainWindow(QMainWindow):
             default_filename = f"weekend_trading_{current_date}.json"
             
             # Guardar en archivo JSON
-            dialog = QFileDialog(self, "Guardar Semana")
+            dialog = QFileDialog(self, tr("save_week_title"))
             dialog.setNameFilter("JSON Files (*.json)")
             dialog.setDefaultSuffix("json")
             dialog.setAcceptMode(QFileDialog.AcceptSave)
@@ -320,13 +338,13 @@ class MainWindow(QMainWindow):
             if dialog.exec_() == QFileDialog.Accepted:
                 filename = dialog.selectedFiles()[0]
                 if self.data_model.save_to_file(filename):
-                    self.update_save_status("✅ Semana guardada exitosamente")
+                    self.update_save_status("✅ " + tr("save_success"))
                 else:
-                    self.update_save_status("❌ Error al guardar archivo")
+                    self.update_save_status("❌ " + tr("save_error"))
                 
         except Exception as e:
-            QMessageBox.critical(self, "Error al guardar", str(e))
-            self.update_save_status("❌ Error al guardar")
+            QMessageBox.critical(self, tr("save_error"), str(e))
+            self.update_save_status("❌ " + tr("save_error"))
     
     def load_week(self):
         """Cargar semana desde archivo de la carpeta Weekend-Saved"""
@@ -336,12 +354,12 @@ class MainWindow(QMainWindow):
             save_folder = "Weekend-Saved"
             
             if not os.path.exists(save_folder):
-                QMessageBox.information(self, "Información", 
-                                      "No existe la carpeta Weekend-Saved.\n"
-                                      "Se creará al guardar la primera semana.")
+                QMessageBox.information(self, tr("information"), 
+                                      f"{tr('file_not_found')}: Weekend-Saved\n"
+                                      f"{tr('operation_completed')}.")
                 return
             
-            dialog = QFileDialog(self, "Cargar Semana")
+            dialog = QFileDialog(self, tr("load_week_title"))
             dialog.setNameFilter("JSON Files (*.json)")
             dialog.setAcceptMode(QFileDialog.AcceptOpen)
             dialog.setDirectory(save_folder)
@@ -356,13 +374,13 @@ class MainWindow(QMainWindow):
                     self.table_widget.load_data()
                     self.update_chart()
                     self.update_summary()
-                    self.update_save_status("✅ Semana cargada exitosamente")
+                    self.update_save_status("✅ " + tr("load_success"))
                 else:
-                    self.update_save_status("❌ Error al cargar archivo")
+                    self.update_save_status("❌ " + tr("load_error"))
                 
         except Exception as e:
-            QMessageBox.critical(self, "Error al cargar", str(e))
-            self.update_save_status("❌ Error al cargar")
+            QMessageBox.critical(self, tr("load_error"), str(e))
+            self.update_save_status("❌ " + tr("load_error"))
     
     def load_from_database(self):
         """Cargar desde base de datos"""
@@ -370,7 +388,7 @@ class MainWindow(QMainWindow):
             weeks = self.data_model.get_all_saved_weeks()
 
             if not weeks:
-                QMessageBox.information(self, "Información", "No hay semanas guardadas en la base de datos.")
+                QMessageBox.information(self, tr("information"), tr("file_not_found"))
                 return
 
             if len(weeks) == 1:
@@ -379,9 +397,9 @@ class MainWindow(QMainWindow):
                 # Crear diálogo de selección
                 from PyQt5.QtWidgets import QInputDialog
                 dialog = QInputDialog(self)
-                dialog.setWindowTitle("Seleccionar Semana")
-                dialog.setLabelText("Selecciona la semana a cargar:")
-                dialog.setComboBoxItems([f"Semana del {w}" for w in weeks])
+                dialog.setWindowTitle(tr("load_week_title"))
+                dialog.setLabelText(tr("week") + ":")
+                dialog.setComboBoxItems([f"{tr('week')} {w}" for w in weeks])
 
                 # Aplicar tema al diálogo
                 if self.dark_mode:
@@ -398,13 +416,13 @@ class MainWindow(QMainWindow):
                 self.table_widget.load_data()
                 self.update_chart()
                 self.update_summary()
-                self.update_save_status(f"✅ Semana del {week_date} cargada")
+                self.update_save_status(f"✅ {tr('week')} {week_date} {tr('load_success')}")
             else:
-                QMessageBox.warning(self, "Advertencia", f"No se pudo cargar la semana del {week_date}")
+                QMessageBox.warning(self, tr("warning"), f"{tr('load_error')} {week_date}")
 
         except Exception as e:
-            QMessageBox.critical(self, "Error", f"Error al cargar desde base de datos: {str(e)}")
-            self.update_save_status("❌ Error al cargar desde BD")
+            QMessageBox.critical(self, tr("error"), f"{tr('load_error')} {str(e)}")
+            self.update_save_status("❌ " + tr("load_error"))
 
     def ask_for_initial_capital(self):
         """Preguntar por el capital inicial al iniciar una semana nueva"""
@@ -420,13 +438,13 @@ class MainWindow(QMainWindow):
                 self.data_model.initial_capital = new_capital
                 self.data_model.save_current_week()
                 self.update_summary()
-                self.status_bar.showMessage(f"✅ Capital inicial establecido: ${new_capital:.2f}", 3000)
+                self.status_bar.showMessage(f"✅ {tr('capital_initial')} ${new_capital:.2f}", 3000)
             else:
                 # Si cancela, usar valor por defecto
                 self.data_model.initial_capital = 100.0
                 self.data_model.save_current_week()
                 self.update_summary()
-                self.status_bar.showMessage("ℹ️ Capital inicial por defecto: $100.00", 3000)
+                self.status_bar.showMessage(f"ℹ️ {tr('capital_initial')} $100.00", 3000)
                 
         except Exception as e:
             # En caso de error, usar valor por defecto
@@ -448,10 +466,65 @@ class MainWindow(QMainWindow):
                      self.data_model.initial_capital = new_capital
                      self.data_model.save_current_week()
                      self.update_summary()
-                     self.update_save_status(f"✅ Capital inicial actualizado: ${new_capital:.2f}")
+                     self.update_save_status(f"✅ {tr('capital_initial')} ${new_capital:.2f}")
         except Exception as e:
-            QMessageBox.critical(self, "Error", f"Error al establecer capital inicial: {str(e)}")
-            self.update_save_status("❌ Error al establecer capital")
+            QMessageBox.critical(self, tr("error"), f"{tr('operation_failed')}: {str(e)}")
+            self.update_save_status("❌ " + tr("operation_failed"))
+    
+    def export_to_excel(self):
+        """Exportar datos a Excel"""
+        try:
+            if not self.data_model:
+                QMessageBox.warning(self, tr("warning"), tr("no_data_to_export"))
+                return
+            
+            # Obtener datos de la semana actual
+            weekly_data = self.data_model.get_weekly_data()
+            # Número de semana basado en fecha de inicio
+            week_number = self.data_model.week_start_date.isocalendar()[1]
+            
+            # Mostrar diálogo de exportación
+            show_export_dialog(weekly_data, week_number, self)
+            
+        except Exception as e:
+            QMessageBox.critical(self, tr("error"), f"{tr('export_error')}: {str(e)}")
+            self.update_save_status("❌ " + tr("export_error"))
+    
+    def export_to_csv(self):
+        """Exportar datos a CSV"""
+        try:
+            if not self.data_model:
+                QMessageBox.warning(self, tr("warning"), tr("no_data_to_export"))
+                return
+            
+            # Obtener datos de la semana actual
+            weekly_data = self.data_model.get_weekly_data()
+            week_number = self.data_model.week_start_date.isocalendar()[1]
+            
+            # Mostrar diálogo de exportación
+            show_export_dialog(weekly_data, week_number, self)
+            
+        except Exception as e:
+            QMessageBox.critical(self, tr("error"), f"{tr('export_error')}: {str(e)}")
+            self.update_save_status("❌ " + tr("export_error"))
+    
+    def export_to_json(self):
+        """Exportar datos a JSON"""
+        try:
+            if not self.data_model:
+                QMessageBox.warning(self, tr("warning"), tr("no_data_to_export"))
+                return
+            
+            # Obtener datos de la semana actual
+            weekly_data = self.data_model.get_weekly_data()
+            week_number = self.data_model.week_start_date.isocalendar()[1]
+            
+            # Mostrar diálogo de exportación
+            show_export_dialog(weekly_data, week_number, self)
+            
+        except Exception as e:
+            QMessageBox.critical(self, tr("error"), f"{tr('export_error')}: {str(e)}")
+            self.update_save_status("❌ " + tr("export_error"))
     
     def closeEvent(self, event):
         """Manejar cierre de la aplicación"""

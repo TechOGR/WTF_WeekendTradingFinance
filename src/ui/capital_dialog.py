@@ -1,10 +1,11 @@
 """
 Diálogo para establecer el capital inicial de la semana
 """
-from PyQt5.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel, 
+from PyQt5.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel,
                                QLineEdit, QPushButton)
 from PyQt5.QtGui import QDoubleValidator
 from PyQt5.QtCore import Qt, pyqtSignal
+from src.utils.i18n import tr
 
 
 class CapitalDialog(QDialog):
@@ -15,7 +16,7 @@ class CapitalDialog(QDialog):
     def __init__(self, current_capital=100.0, parent=None):
         super().__init__(parent)
         self.current_capital = current_capital
-        self.setWindowTitle("Establecer Capital Inicial")
+        self.setWindowTitle(tr("capital_dialog_title"))
         self.setModal(True)
         self.setFixedSize(400, 500)
         
@@ -28,8 +29,8 @@ class CapitalDialog(QDialog):
         layout.setContentsMargins(30, 30, 30, 30)
         
         # Título
-        title_label = QLabel("Capital Inicial de la Semana")
-        title_label.setStyleSheet("""
+        self.title_label = QLabel(tr("capital_dialog_title"))
+        self.title_label.setStyleSheet("""
             QLabel {
                 font-size: 16pt;
                 font-weight: bold;
@@ -37,21 +38,21 @@ class CapitalDialog(QDialog):
                 margin-bottom: 10px;
             }
         """)
-        title_label.setAlignment(Qt.AlignCenter)
-        layout.addWidget(title_label)
+        self.title_label.setAlignment(Qt.AlignCenter)
+        layout.addWidget(self.title_label)
         
         # Descripción
-        desc_label = QLabel("Ingresa el capital inicial con el que comenzarás esta semana:")
-        desc_label.setStyleSheet("font-size: 11pt; color: #34495e; margin-bottom: 10px;")
-        desc_label.setWordWrap(True)
-        layout.addWidget(desc_label)
+        self.desc_label = QLabel(tr("capital_tooltip"))
+        self.desc_label.setStyleSheet("font-size: 11pt; color: #34495e; margin-bottom: 10px;")
+        self.desc_label.setWordWrap(True)
+        layout.addWidget(self.desc_label)
         
         # Campo de entrada
         input_layout = QHBoxLayout()
         
-        currency_label = QLabel("$")
-        currency_label.setStyleSheet("font-size: 14pt; font-weight: bold; color: #2c3e50;")
-        input_layout.addWidget(currency_label)
+        self.currency_label = QLabel("$")
+        self.currency_label.setStyleSheet("font-size: 14pt; font-weight: bold; color: #2c3e50;")
+        input_layout.addWidget(self.currency_label)
         
         self.capital_input = QLineEdit()
         self.capital_input.setText(str(self.current_capital))
@@ -84,7 +85,7 @@ class CapitalDialog(QDialog):
         button_layout = QHBoxLayout()
         button_layout.setSpacing(15)
         
-        self.cancel_button = QPushButton("Cancelar")
+        self.cancel_button = QPushButton(tr("cancel"))
         self.cancel_button.clicked.connect(self.reject)
         self.cancel_button.setStyleSheet("""
             QPushButton {
@@ -106,7 +107,7 @@ class CapitalDialog(QDialog):
         """)
         button_layout.addWidget(self.cancel_button)
         
-        self.accept_button = QPushButton("Establecer Capital")
+        self.accept_button = QPushButton(tr("set_capital"))
         self.accept_button.clicked.connect(self.accept)
         self.accept_button.setDefault(True)
         self.accept_button.setStyleSheet("""
@@ -152,8 +153,7 @@ class CapitalDialog(QDialog):
             super().accept()
         else:
             from PyQt5.QtWidgets import QMessageBox
-            QMessageBox.warning(self, "Advertencia", 
-                              "Por favor ingresa un capital inicial válido mayor a 0.")
+            QMessageBox.warning(self, tr("warning"), tr("capital_required"))
     
     def keyPressEvent(self, event):
         """Manejar eventos de teclado"""
@@ -163,3 +163,11 @@ class CapitalDialog(QDialog):
             self.reject()
         else:
             super().keyPressEvent(event)
+
+    def apply_language(self):
+        """Actualizar textos al cambiar idioma"""
+        self.setWindowTitle(tr("capital_dialog_title"))
+        self.title_label.setText(tr("capital_dialog_title"))
+        self.desc_label.setText(tr("capital_tooltip"))
+        self.cancel_button.setText(tr("cancel"))
+        self.accept_button.setText(tr("set_capital"))

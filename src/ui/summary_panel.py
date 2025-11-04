@@ -6,6 +6,7 @@ from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel,
                             QFrame, QTextEdit, QGroupBox)
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QFont, QPalette, QColor
+from src.utils.i18n import tr
 
 class SummaryPanel(QWidget):
     """Panel de resumen mejorado para mostrar estadísticas y análisis"""
@@ -19,7 +20,7 @@ class SummaryPanel(QWidget):
         layout = QVBoxLayout()
         
         # Título principal
-        self.title_label = QLabel("📊 RESUMEN SEMANAL")
+        self.title_label = QLabel(tr("weekly_summary_panel"))
         self.title_label.setObjectName("summary_title")
         self.title_label.setAlignment(Qt.AlignCenter)
         self.title_label.setStyleSheet("""
@@ -48,19 +49,19 @@ class SummaryPanel(QWidget):
         stats_layout = QVBoxLayout()
         
         # Capital inicial
-        self.initial_capital_label = QLabel("Capital Inicial: $100.00")
+        self.initial_capital_label = QLabel(f"{tr('capital_initial')} $100.00")
         self.initial_capital_label.setObjectName("initial_capital")
         self.initial_capital_label.setStyleSheet("font-size: 12pt; font-weight: bold; color: #34495e;")
         stats_layout.addWidget(self.initial_capital_label)
         
         # Balance actual
-        self.current_balance_label = QLabel("Balance Actual: $100.00")
+        self.current_balance_label = QLabel(f"{tr('current_balance')} $100.00")
         self.current_balance_label.setObjectName("current_balance")
         self.current_balance_label.setStyleSheet("font-size: 14pt; font-weight: bold; color: #2c3e50;")
         stats_layout.addWidget(self.current_balance_label)
         
         # Ganancia/Pérdida total
-        self.profit_loss_label = QLabel("Ganancia/Pérdida: $0.00 (0.00%)")
+        self.profit_loss_label = QLabel(f"{tr('total_profit_loss')} $0.00 (0.00%)")
         self.profit_loss_label.setObjectName("profit_loss")
         self.profit_loss_label.setStyleSheet("font-size: 13pt; font-weight: bold; color: #2c3e50;")
         stats_layout.addWidget(self.profit_loss_label)
@@ -69,7 +70,7 @@ class SummaryPanel(QWidget):
         details_layout = QHBoxLayout()
         
         # Columna de retiros
-        self.withdrawal_group = QGroupBox("💰 Retiros Personales")
+        self.withdrawal_group = QGroupBox(tr("personal_withdrawal"))
         withdrawal_layout = QVBoxLayout()
         self.withdrawal_label = QLabel("$0.00")
         self.withdrawal_label.setObjectName("positive")
@@ -79,7 +80,7 @@ class SummaryPanel(QWidget):
         details_layout.addWidget(self.withdrawal_group)
         
         # Columna de total semanal
-        self.total_group = QGroupBox("📊 Total Semanal")
+        self.total_group = QGroupBox(tr("total_week"))
         total_layout = QVBoxLayout()
         self.weekly_total_label = QLabel("$0.00")
         self.weekly_total_label.setObjectName("weekly_total")
@@ -89,7 +90,7 @@ class SummaryPanel(QWidget):
         details_layout.addWidget(self.total_group)
         
         # Columna de reinversión
-        self.reinvestment_group = QGroupBox("🔄 Reinversión")
+        self.reinvestment_group = QGroupBox(tr("reinvestment"))
         reinvestment_layout = QVBoxLayout()
         self.reinvestment_label = QLabel("$0.00")
         self.reinvestment_label.setObjectName("positive")
@@ -99,14 +100,14 @@ class SummaryPanel(QWidget):
         details_layout.addWidget(self.reinvestment_group)
         
         # Columna de rendimiento
-        self.performance_group = QGroupBox("📈 Rendimiento")
+        self.performance_group = QGroupBox(tr("performance"))
         performance_layout = QVBoxLayout()
         self.performance_label = QLabel("0.00%")
         self.performance_label.setStyleSheet("font-size: 12pt; font-weight: bold; color: #3498db;")
         performance_layout.addWidget(self.performance_label)
         
         # Días positivos/negativos
-        self.days_label = QLabel("Días: +0 / -0")
+        self.days_label = QLabel(tr("days_label").format(positive=0, negative=0))
         self.days_label.setStyleSheet("font-size: 10pt; color: #7f8c8d;")
         performance_layout.addWidget(self.days_label)
         
@@ -118,7 +119,7 @@ class SummaryPanel(QWidget):
         layout.addWidget(self.stats_frame)
         
         # Sección de consejo del día
-        self.advice_group = QGroupBox("Consejo del día")
+        self.advice_group = QGroupBox(tr("daily_advice_title"))
         advice_layout = QVBoxLayout()
         self.daily_advice_label = QLabel("")
         self.daily_advice_label.setWordWrap(True)
@@ -128,11 +129,11 @@ class SummaryPanel(QWidget):
         layout.addWidget(self.advice_group)
 
         # Sección de análisis AI
-        self.ai_group = QGroupBox("🤖 Análisis AI")
+        self.ai_group = QGroupBox(tr("ai_analysis_title"))
         ai_layout = QVBoxLayout()
         
         # Resumen del análisis
-        self.ai_summary_label = QLabel("Esperando datos...")
+        self.ai_summary_label = QLabel(tr("loading"))
         self.ai_summary_label.setWordWrap(True)
         self.ai_summary_label.setStyleSheet("""
             QLabel {
@@ -166,7 +167,7 @@ class SummaryPanel(QWidget):
         layout.addWidget(self.ai_group)
         
         # Panel de estado
-        self.status_label = QLabel("✅ Listo")
+        self.status_label = QLabel(tr("operation_completed"))
         self.status_label.setAlignment(Qt.AlignCenter)
         self.status_label.setStyleSheet("""
             QLabel {
@@ -196,13 +197,13 @@ class SummaryPanel(QWidget):
             profit_loss_percentage = capital_data.get('profit_loss_percentage', 0)
             
             # Actualizar capital inicial
-            self.initial_capital_label.setText(f"Capital Inicial: ${initial_capital:.2f}")
+            self.initial_capital_label.setText(f"{tr('capital_initial')} ${initial_capital:.2f}")
             
             # Actualizar balance actual
-            self.current_balance_label.setText(f"Balance Actual: ${current_balance:.2f}")
+            self.current_balance_label.setText(f"{tr('current_balance')} ${current_balance:.2f}")
             
             # Actualizar ganancia/pérdida total con color
-            profit_text = f"Ganancia/Pérdida: ${total_profit_loss:.2f} ({profit_loss_percentage:.2f}%)"
+            profit_text = f"{tr('total_profit_loss')} ${total_profit_loss:.2f} ({profit_loss_percentage:.2f}%)"
             self.profit_loss_label.setText(profit_text)
             
             if total_profit_loss >= 0:
@@ -231,32 +232,32 @@ class SummaryPanel(QWidget):
         else:
             self.performance_label.setStyleSheet("font-size: 12pt; font-weight: bold; color: #e74c3c;")
         
-        self.days_label.setText(f"Días: +{positive_days} / -{negative_days}")
+        self.days_label.setText(tr("days_label").format(positive=positive_days, negative=negative_days))
         
         # Actualizar análisis AI
         if ai_analysis:
-            self.ai_summary_label.setText(ai_analysis.get('summary', 'Sin análisis disponible'))
+            self.ai_summary_label.setText(ai_analysis.get('summary', tr('no_analysis')))
             
             # Construir texto detallado
             details_text = ""
             
             if 'insights' in ai_analysis:
-                details_text += "🔍 INSIGHTS:\n"
+                details_text += f"🔍 {tr('insights')}:\n"
                 for insight in ai_analysis['insights']:
                     details_text += f"• {insight}\n"
                 details_text += "\n"
             
             if 'recommendations' in ai_analysis:
-                details_text += "💡 RECOMENDACIONES:\n"
+                details_text += f"💡 {tr('recommendations')}:\n"
                 for rec in ai_analysis['recommendations']:
                     details_text += f"• {rec}\n"
                 details_text += "\n"
             
             if 'risk_assessment' in ai_analysis:
-                details_text += f"⚠️  EVALUACIÓN DE RIESGO:\n{ai_analysis['risk_assessment']}\n"
+                details_text += f"⚠️  {tr('risk_assessment')}:\n{ai_analysis['risk_assessment']}\n"
             
             if 'performance_rating' in ai_analysis:
-                details_text += f"\n⭐ CALIFICACIÓN: {ai_analysis['performance_rating']}"
+                details_text += f"\n⭐ {tr('rating')}: {ai_analysis['performance_rating']}"
             
             self.ai_details_text.setPlainText(details_text)
 
@@ -265,11 +266,47 @@ class SummaryPanel(QWidget):
         if not advice:
             self.daily_advice_label.setText("")
             return
-        title = advice.get('title', 'Consejo del día')
+        title = advice.get('title', tr('daily_advice_title'))
         message = advice.get('message', '')
         replaced = message.replace("\n", "<br>")
         html = f"<b>{title}</b><br><br>{replaced}"
         self.daily_advice_label.setText(html)
+
+    def apply_language(self):
+        """Aplicar traducciones a títulos y etiquetas del panel"""
+        self.title_label.setText(tr("weekly_summary_panel"))
+        self.withdrawal_group.setTitle(tr("personal_withdrawal"))
+        self.total_group.setTitle(tr("total_week"))
+        self.reinvestment_group.setTitle(tr("reinvestment"))
+        self.performance_group.setTitle(tr("performance"))
+        self.advice_group.setTitle(tr("daily_advice_title"))
+        self.ai_group.setTitle(tr("ai_analysis_title"))
+        # Encabezados principales (se actualizan con datos)
+        # Mantener valores actuales pero traducir prefijos
+        try:
+            # Capital inicial
+            cap_text = self.initial_capital_label.text()
+            amount = cap_text.split(":")[-1].strip()
+            self.initial_capital_label.setText(f"{tr('capital_initial')} {amount}")
+        except Exception:
+            pass
+        try:
+            bal_text = self.current_balance_label.text()
+            amount = bal_text.split(":")[-1].strip()
+            self.current_balance_label.setText(f"{tr('current_balance')} {amount}")
+        except Exception:
+            pass
+        # Profit/loss re-rendered via update_summary; keep as-is
+        # Días label
+        try:
+            # Extract numbers from current days_label
+            import re
+            m = re.search(r"\+(\d+)\s*/\s*-(\d+)", self.days_label.text())
+            if m:
+                pos, neg = m.group(1), m.group(2)
+                self.days_label.setText(tr("days_label").format(positive=pos, negative=neg))
+        except Exception:
+            pass
     
     def update_status(self, status: str):
         """Actualizar el estado"""
