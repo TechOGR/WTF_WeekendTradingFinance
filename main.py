@@ -1,5 +1,5 @@
 """
-W-T-F (Weekend Trading Finance) Trading Manager - Versión Modular
+W-T-F (Weekend Trading Finance) Trading Manager
 Aplicación principal que integra todos los componentes modulares
 """
 
@@ -9,7 +9,7 @@ from PyQt5.QtWidgets import (QApplication, QMainWindow, QWidget, QHBoxLayout,
                            QVBoxLayout, QSplitter, QStatusBar, QMessageBox, QFileDialog, 
                            QDialog, QInputDialog)
 from PyQt5.QtCore import Qt, QTimer, pyqtSlot
-from PyQt5.QtGui import QPalette, QColor
+from PyQt5.QtGui import QPalette, QColor, QIcon
 
 # Importar componentes modulares
 from src.ui.main_menu import MainMenuBar
@@ -23,6 +23,7 @@ from src.models.ai_analyzer import AIAnalyzer
 from src.styles.themes import ThemeManager
 from src.utils.advice import get_daily_advice, get_weekly_summary_message
 from src.utils.i18n import tr, set_language
+from src.ui.load_week_dialog import LoadWeekDialog
 
 class MainWindow(QMainWindow):
     """Ventana principal de la aplicación W-T-F Trading Manager"""
@@ -39,7 +40,20 @@ class MainWindow(QMainWindow):
     def setup_ui(self):
         """Configurar la interfaz de usuario principal"""
         self.setWindowTitle(tr("app_title"))
-        self.setGeometry(100, 100, 1400, 900)
+        self.setGeometry(100, 100, 1300, 950)
+        
+        # Establecer icono de la aplicación con ruta absoluta base + src/images
+        try:
+            base_dir = os.path.dirname(sys.executable) if getattr(sys, 'frozen', False) else os.path.abspath(os.getcwd())
+            images_dir = os.path.join(base_dir, 'src', 'images')
+            logo_png = os.path.join(images_dir, 'logo.png')
+            fallback_svg = os.path.join(images_dir, 'app_icon.svg')
+            if os.path.exists(logo_png):
+                self.setWindowIcon(QIcon(logo_png))
+            elif os.path.exists(fallback_svg):
+                self.setWindowIcon(QIcon(fallback_svg))
+        except Exception as e:
+            print(f"Error al cargar el icono de la ventana: {e}")
         
         # Crear modelo de datos
         self.data_model = TradingDataModelWithDB()
@@ -108,10 +122,14 @@ class MainWindow(QMainWindow):
         self.menu_bar.set_capital_triggered.connect(self.set_initial_capital)
         self.menu_bar.theme_changed.connect(self.apply_theme)
         self.menu_bar.show_daily_advice_triggered.connect(self.show_daily_advice)
+        self.menu_bar.daily_advice_visibility_changed.connect(self.on_toggle_daily_advice_visibility)
         self.menu_bar.show_weekly_summary_triggered.connect(self.show_weekly_summary_notification)
+        self.menu_bar.start_new_week_triggered.connect(self.start_new_week_reset)
         self.menu_bar.export_excel_triggered.connect(self.export_to_excel)
         self.menu_bar.export_csv_triggered.connect(self.export_to_csv)
         self.menu_bar.export_json_triggered.connect(self.export_to_json)
+        # Visibilidad de leyenda del gráfico
+        self.menu_bar.legend_visibility_changed.connect(self.on_toggle_legend)
         # Cambio de idioma desde la barra de menú
         self.menu_bar.language_changed.connect(self.on_language_changed)
         
@@ -124,6 +142,12 @@ class MainWindow(QMainWindow):
         
         # Mostrar consejo del día al iniciar
         self.show_daily_advice()
+
+        # Toggle: modo edición por capital en la tabla desde el menú
+        try:
+            self.menu_bar.day_capital_edit_mode_changed.connect(self.table_widget.set_capital_edit_mode)
+        except Exception as e:
+            print(f"No se pudo conectar el modo edición por capital: {e}")
     
     def apply_theme(self, is_dark: bool):
         """Aplicar tema profesional a toda la aplicación"""
@@ -166,6 +190,13 @@ class MainWindow(QMainWindow):
         for widget in QApplication.allWidgets():
             if isinstance(widget, (QDialog, QFileDialog, QInputDialog, QMessageBox)):
                 widget.setStyleSheet(self.theme_manager.get_widget_styles(is_dark))
+
+    def on_toggle_legend(self, visible: bool):
+        """Mostrar u ocultar la leyenda del gráfico desde el menú."""
+        try:
+            self.chart_widget.set_legend_visible(visible)
+        except Exception:
+            pass
     
     def load_initial_data(self):
         """Cargar datos iniciales al iniciar la aplicación"""
@@ -175,7 +206,7 @@ class MainWindow(QMainWindow):
                 self.table_widget.load_data()
                 self.update_chart()  # Actualizar gráfico con datos cargados
                 self.update_summary()
-                self.status_bar.showMessage("✅ Datos iniciales cargados desde base de datos", 3000)
+                self.status_bar.showMessage("✅ " + tr("initial_data_loaded_db"), 3000)
                 # Consejos al cargar datos
                 self.show_daily_advice()
                 # Si es sábado, mostrar resumen semanal
@@ -183,6 +214,8 @@ class MainWindow(QMainWindow):
                     from datetime import datetime
                     if datetime.now().weekday() == 5:
                         self.show_weekly_summary_notification()
+                        # Realizar rollover automático a la nueva semana
+                        self.perform_saturday_rollover()
                 except Exception:
                     pass
             else:
@@ -190,13 +223,15 @@ class MainWindow(QMainWindow):
                 self.ask_for_initial_capital()
                 # Actualizar gráfico con datos vacíos
                 self.update_chart()
-                self.status_bar.showMessage("ℹ️ No hay datos previos, comenzando con semana nueva", 3000)
+                self.status_bar.showMessage("ℹ️ " + tr("no_previous_data_new_week"), 3000)
                 self.show_daily_advice()
                 # Si es sábado, mostrar resumen semanal
                 try:
                     from datetime import datetime
                     if datetime.now().weekday() == 5:
                         self.show_weekly_summary_notification()
+                        # Realizar rollover automático a la nueva semana
+                        self.perform_saturday_rollover()
                 except Exception:
                     pass
                 
@@ -283,11 +318,121 @@ class MainWindow(QMainWindow):
         except Exception as e:
             print(f"Error al generar consejo del día: {e}")
 
+    def on_toggle_daily_advice_visibility(self, visible: bool):
+        """Mostrar/Ocultar el grupo de consejo del día desde el menú."""
+        try:
+            self.summary_panel.advice_group.setVisible(visible)
+            msg = ("✅ Consejo visible" if visible else "🙈 Consejo oculto")
+            self.status_bar.showMessage(msg, 2000)
+        except Exception as e:
+            print(f"No se pudo cambiar visibilidad del consejo: {e}")
+
     def show_weekly_summary_notification(self):
         """Mostrar notificación de resumen semanal (útil para sábados)."""
         try:
             message = get_weekly_summary_message(self.data_model)
             QMessageBox.information(self, tr("weekly_summary_panel"), message)
+        except Exception as e:
+            QMessageBox.warning(self, tr("warning"), f"{tr('operation_failed')}: {e}")
+
+    def perform_saturday_rollover(self):
+        """Si es sábado, crea automáticamente la nueva semana para el lunes próximo con capital actualizado.
+        Evita sobreescribir la semana previa creando un nuevo registro y archivo con datos en cero.
+        """
+        try:
+            from datetime import timedelta
+            # Calcular el lunes próximo respecto a la semana cargada
+            current_week_start = getattr(self.data_model, 'week_start_date', None)
+            if not current_week_start:
+                return
+
+            next_monday_date = current_week_start + timedelta(days=7)
+
+            # Si ya estamos en la semana del próximo lunes, no repetir
+            if self.data_model.week_start_date >= next_monday_date:
+                return
+
+            # Calcular retiro recomendado y nuevo capital
+            total = float(self.data_model.get_total_profit_loss())
+            balance = float(self.data_model.get_current_balance())
+            withdraw = max(0.0, total) * 0.30
+            new_initial = max(0.0, balance - withdraw)
+
+            # Crear nueva semana en el modelo/BD
+            created = self.data_model.start_new_week(next_monday_date, new_initial)
+            if not created:
+                QMessageBox.warning(self, tr("warning"), tr("operation_failed"))
+                return
+
+            # Actualizar UI con datos reiniciados
+            self.table_widget.load_data()
+            self.update_chart()
+            self.update_summary()
+
+            # Guardar automáticamente archivo JSON de la nueva semana
+            try:
+                self.save_week()
+            except Exception:
+                pass
+
+            # Mensaje de estado informativo
+            self.status_bar.showMessage(
+                f"✅ {tr('week')} {next_monday_date.isoformat()} | {tr('capital_initial')} ${new_initial:.2f}",
+                5000
+            )
+        except Exception as e:
+            print(f"Error en rollover del sábado: {e}")
+
+    def start_new_week_reset(self):
+        """Crear manualmente una nueva semana con datos en cero para evitar sobreescritura.
+        Útil si se omitió el sábado y se abre el domingo u otro día.
+        """
+        try:
+            from datetime import timedelta
+            current_week_start = getattr(self.data_model, 'week_start_date', None)
+            if not current_week_start:
+                QMessageBox.warning(self, tr("warning"), tr("capital_required"))
+                return
+
+            confirm = QMessageBox.question(
+                self,
+                tr("confirm"),
+                tr("status_start_new_week_reset"),
+                QMessageBox.Yes | QMessageBox.No,
+                QMessageBox.Yes
+            )
+            if confirm != QMessageBox.Yes:
+                return
+
+            next_monday_date = current_week_start + timedelta(days=7)
+
+            if self.data_model.week_start_date >= next_monday_date:
+                QMessageBox.information(self, tr("information"), tr("operation_completed"))
+                return
+
+            total = float(self.data_model.get_total_profit_loss())
+            balance = float(self.data_model.get_current_balance())
+            withdraw = max(0.0, total) * 0.30
+            new_initial = max(0.0, balance - withdraw)
+
+            created = self.data_model.start_new_week(next_monday_date, new_initial)
+            if not created:
+                QMessageBox.warning(self, tr("warning"), tr("operation_failed"))
+                return
+
+            self.table_widget.load_data()
+            self.update_chart()
+            self.update_summary()
+
+            try:
+                self.save_week()
+            except Exception:
+                pass
+
+            self.status_bar.showMessage(
+                f"🆕 {tr('week')} {next_monday_date.isoformat()} | {tr('capital_initial')} ${new_initial:.2f}",
+                5000
+            )
         except Exception as e:
             QMessageBox.warning(self, tr("warning"), f"{tr('operation_failed')}: {e}")
     
@@ -301,6 +446,9 @@ class MainWindow(QMainWindow):
         # Retraducir panel de resumen
         if hasattr(self.summary_panel, 'apply_language'):
             self.summary_panel.apply_language()
+        # Retraducir gráfico
+        if hasattr(self.chart_widget, 'apply_language'):
+            self.chart_widget.apply_language()
     
     @pyqtSlot(str)
     def update_save_status(self, status):
@@ -311,65 +459,52 @@ class MainWindow(QMainWindow):
         self.summary_panel.update_status(status)
     
     def save_week(self):
-        """Guardar la semana actual en la carpeta Weekend-Saved"""
+        """Guardar automáticamente la semana en Weekend-Saved sin diálogo"""
         try:
-            # Crear carpeta Weekend-Saved si no existe
             import os
-            save_folder = "Weekend-Saved"
+            import sys
+            from datetime import datetime, timedelta
+
+            # Crear carpeta Weekend-Saved junto al ejecutable (si congelado) o al script
+            if getattr(sys, 'frozen', False):
+                base_dir = os.path.dirname(sys.executable)
+            else:
+                base_dir = os.path.dirname(os.path.abspath(__file__))
+            save_folder = os.path.join(base_dir, "Weekend-Saved")
             os.makedirs(save_folder, exist_ok=True)
-            
-            # Generar nombre de archivo con fecha actual
-            from datetime import datetime
-            current_date = datetime.now().strftime("%Y-%m-%d")
-            default_filename = f"weekend_trading_{current_date}.json"
-            
-            # Guardar en archivo JSON
-            dialog = QFileDialog(self, tr("save_week_title"))
-            dialog.setNameFilter("JSON Files (*.json)")
-            dialog.setDefaultSuffix("json")
-            dialog.setAcceptMode(QFileDialog.AcceptSave)
-            dialog.setDirectory(save_folder)
-            dialog.selectFile(default_filename)
-            
-            # Aplicar tema al diálogo
-            if self.dark_mode:
-                dialog.setStyleSheet(self.theme_manager.get_widget_styles(True))
-            
-            if dialog.exec_() == QFileDialog.Accepted:
-                filename = dialog.selectedFiles()[0]
-                if self.data_model.save_to_file(filename):
-                    self.update_save_status("✅ " + tr("save_success"))
-                else:
-                    self.update_save_status("❌ " + tr("save_error"))
-                
+
+            # Determinar el lunes de la semana a guardar
+            monday_date = None
+            if hasattr(self.data_model, 'week_start_date') and self.data_model.week_start_date:
+                monday_date = self.data_model.week_start_date
+            else:
+                today = datetime.now()
+                monday_date = today - timedelta(days=today.weekday())
+
+            # Nombre de archivo basado en el lunes de la semana
+            monday_str = monday_date.strftime("%Y-%m-%d")
+            default_filename = f"weekend_trading_{monday_str}.json"
+            filepath = os.path.join(save_folder, default_filename)
+
+            # Guardar en archivo JSON directamente
+            if self.data_model.save_to_file(filepath):
+                self.update_save_status("✅ " + tr("save_success"))
+            else:
+                self.update_save_status("❌ " + tr("save_error"))
+
         except Exception as e:
             QMessageBox.critical(self, tr("save_error"), str(e))
             self.update_save_status("❌ " + tr("save_error"))
     
     def load_week(self):
-        """Cargar semana desde archivo de la carpeta Weekend-Saved"""
+        """Cargar semana desde un diálogo que lista las semanas guardadas."""
         try:
-            # Verificar si existe la carpeta Weekend-Saved
-            import os
-            save_folder = "Weekend-Saved"
-            
-            if not os.path.exists(save_folder):
-                QMessageBox.information(self, tr("information"), 
-                                      f"{tr('file_not_found')}: Weekend-Saved\n"
-                                      f"{tr('operation_completed')}.")
-                return
-            
-            dialog = QFileDialog(self, tr("load_week_title"))
-            dialog.setNameFilter("JSON Files (*.json)")
-            dialog.setAcceptMode(QFileDialog.AcceptOpen)
-            dialog.setDirectory(save_folder)
-            
-            # Aplicar tema al diálogo
-            if self.dark_mode:
-                dialog.setStyleSheet(self.theme_manager.get_widget_styles(True))
-            
-            if dialog.exec_() == QFileDialog.Accepted:
-                filename = dialog.selectedFiles()[0]
+            dialog = LoadWeekDialog(self, tr=tr)
+            if dialog.exec_() == QDialog.Accepted:
+                filename = dialog.get_selected_file_path()
+                if not filename:
+                    QMessageBox.warning(self, tr("warning"), tr("select_week_first"))
+                    return
                 if self.data_model.load_from_file(filename):
                     self.table_widget.load_data()
                     self.update_chart()
@@ -377,7 +512,6 @@ class MainWindow(QMainWindow):
                     self.update_save_status("✅ " + tr("load_success"))
                 else:
                     self.update_save_status("❌ " + tr("load_error"))
-                
         except Exception as e:
             QMessageBox.critical(self, tr("load_error"), str(e))
             self.update_save_status("❌ " + tr("load_error"))
@@ -407,7 +541,9 @@ class MainWindow(QMainWindow):
 
                 if dialog.exec_() == QInputDialog.Accepted:
                     item = dialog.textValue()
-                    week_date = item.replace("Semana del ", "")
+                    # Extraer fecha de la semana usando clave traducida
+                    prefix = tr("week") + " "
+                    week_date = item.replace(prefix, "")
                 else:
                     return
 
@@ -533,8 +669,8 @@ class MainWindow(QMainWindow):
             self.data_model.save_current_week()
             event.accept()
         except Exception as e:
-            reply = QMessageBox.question(self, "Confirmar cierre",
-                                       f"Error al guardar: {str(e)}\n¿Desea cerrar de todos modos?",
+            reply = QMessageBox.question(self, tr("confirm_close_title"),
+                                       f"{tr('save_error')}: {str(e)}\n{tr('close_anyway_question')}",
                                        QMessageBox.Yes | QMessageBox.No)
             if reply == QMessageBox.Yes:
                 event.accept()
@@ -547,6 +683,19 @@ def main():
     
     # Configurar estilo de la aplicación
     app.setStyle('Fusion')
+    
+    # Establecer icono global para toda la aplicación usando ruta absoluta base + src/images
+    try:
+        base_dir = os.path.dirname(sys.executable) if getattr(sys, 'frozen', False) else os.path.abspath(os.getcwd())
+        images_dir = os.path.join(base_dir, 'src', 'images')
+        logo_png = os.path.join(images_dir, 'logo.png')
+        fallback_svg = os.path.join(images_dir, 'app_icon.svg')
+        if os.path.exists(logo_png):
+            app.setWindowIcon(QIcon(logo_png))
+        elif os.path.exists(fallback_svg):
+            app.setWindowIcon(QIcon(fallback_svg))
+    except Exception as e:
+        print(f"Error al establecer icono global: {e}")
     
     # Crear y mostrar ventana principal
     window = MainWindow()

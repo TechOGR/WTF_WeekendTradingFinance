@@ -30,13 +30,34 @@ TRANSLATIONS = {
         "set_capital": "💰 Establecer Capital Inicial",
         "exit": "🚪 Salir",
         "dark_mode": "🌙 Modo Oscuro",
+        "toggle_legend": "👁️ Mostrar leyenda",
         "daily_advice": "📌 Mostrar consejo del día",
         "weekly_summary": "🗓️ Resumen semanal",
+        "start_new_week_reset": "🆕 Empezar nueva semana (reiniciar datos)",
         "export_excel": "📈 Exportar a Excel",
         "export_csv": "📋 Exportar a CSV",
         "export_json": "📄 Exportar a JSON",
         "about": "ℹ️ Acerca de",
         "instructions": "📖 Instrucciones",
+        "capital_edit_mode": "💹 Modo edición por capital",
+        
+        # Descripciones (StatusTip) del menú
+        "status_save_week": "Guardar datos de la semana actual",
+        "status_load_week": "Cargar datos desde archivo",
+        "status_load_db": "Cargar datos guardados en la base de datos",
+        "status_set_capital": "Configurar el capital inicial de la semana",
+        "status_exit": "Salir de la aplicación",
+        "status_dark_mode": "Activar/desactivar modo oscuro",
+        "status_toggle_legend": "Mostrar u ocultar la leyenda del gráfico",
+        "status_daily_advice": "Ver recomendaciones según el día actual",
+        "status_weekly_summary": "Mostrar resumen con sugerencia de retiro y reinversión",
+        "status_start_new_week_reset": "Crear semana nueva con datos en cero y capital actualizado",
+        "status_export_excel": "Exportar datos a formato Excel (.xlsx)",
+        "status_export_csv": "Exportar datos a formato CSV",
+        "status_export_json": "Exportar datos a formato JSON",
+        "status_about": "Información sobre la aplicación",
+        "status_instructions": "Ver instrucciones de uso",
+        "status_capital_edit_mode": "Editar el monto por capital inicial/actual",
         
         # Idiomas
         "spanish": "Español",
@@ -53,9 +74,15 @@ TRANSLATIONS = {
         # Diálogo de capital
         "capital_label": "Capital Inicial:",
         "capital_tooltip": "Ingrese el capital inicial para la semana",
+        "capital_placeholder": "Ej: 100.00",
+        "day_capital_dialog_title": "Ingresar capital del día",
+        "initial_capital": "Capital inicial",
+        "current_capital": "Capital actual",
         
         # Tabla de trading
         "day_column": "Día",
+        "type_column": "Tipo",
+        "comments_column": "Comentarios",
         "amount_column": "Monto",
         "destination_column": "Destino",
         "profit_loss_column": "G/P",
@@ -63,7 +90,7 @@ TRANSLATIONS = {
         
         # Destinos
         "personal_withdrawal": "Retiro Personal",
-        "reinvestment": "Reinversión",
+        "reinvestment": "Reinversion",
         "not_operated": "No Operado",
         
         # Panel de resumen
@@ -81,6 +108,19 @@ TRANSLATIONS = {
         # Gráfico
         "weekly_chart_title": "📊 Gráfico de Rendimiento Semanal",
         "profit_loss_chart": "Gráfico de Ganancias/Pérdidas",
+        "daily_performance_title": "Rendimiento Diario de Trading",
+        "weekly_performance_title": "Rendimiento Semanal de Trading",
+        "days_of_week_label": "Días de la Semana",
+        "amount_axis_label": "Monto ($)",
+        "profit_loss_axis_label": "Ganancia/Pérdida ($)",
+        "average_label": "Promedio:",
+        "legend_gain": "Ganancia",
+        "legend_loss": "Pérdida",
+        "legend_neutral": "Neutro",
+        "legend_gain_withdrawal": "Ganancia (Retiro)",
+        "legend_gain_reinvestment": "Ganancia (Reinversión)",
+        "chart_error_update": "Error al actualizar el gráfico",
+        "chart_error_load": "Error al cargar gráfico",
         
         # Exportación
         "export_success": "Exportación exitosa",
@@ -92,6 +132,20 @@ TRANSLATIONS = {
         "starting_export": "Iniciando exportación...",
         "open_file_location_question": "¿Deseas abrir la ubicación del archivo?",
         "no_data_to_export": "No hay datos para exportar",
+        "format_label": "Formato:",
+        "format_excel_recommended": "Excel (.xlsx) - Recomendado",
+        "format_csv_compatible": "CSV (.csv) - Compatible con todos",
+        "format_json_developers": "JSON (.json) - Para desarrolladores",
+        "include_charts_excel": "Incluir gráficos en Excel (si es posible)",
+        "include_detailed_summary": "Incluir resumen detallado",
+        "preview_title": "👁️ Vista Previa",
+        "select_file": "Seleccionar archivo",
+        
+        # Mensajes generales
+        "initial_data_loaded_db": "Datos iniciales cargados desde base de datos",
+        "no_previous_data_new_week": "No hay datos previos, comenzando con semana nueva",
+        "confirm_close_title": "Confirmar cierre",
+        "close_anyway_question": "¿Desea cerrar de todos modos?",
         
         # Mensajes de archivo
         "save_success": "Datos guardados correctamente",
@@ -135,7 +189,19 @@ TRANSLATIONS = {
         "information": "Información",
         "confirm": "Confirmar",
         "operation_completed": "Operación completada",
-        "operation_failed": "Operación fallida"
+        "operation_failed": "Operación fallida",
+        
+        # Diálogo de cargar semana guardada
+        "load_week_dialog_title": "Seleccionar semana guardada",
+        "load_week_action": "Cargar semana",
+        "delete_week": "Borrar semana",
+        "no_saved_weeks": "No hay semanas guardadas",
+        "select_week_first": "Seleccione una semana primero",
+        "confirm_delete_week_title": "Confirmar eliminación",
+        "confirm_delete_week_message": "¿Desea borrar la semana seleccionada?",
+        "week_label": "Semana",
+        "delete_success": "Semana borrada correctamente",
+        "delete_error": "Error al borrar la semana"
     },
     "en": {
         # Window titles
@@ -162,13 +228,34 @@ TRANSLATIONS = {
         "set_capital": "💰 Set Initial Capital",
         "exit": "🚪 Exit",
         "dark_mode": "🌙 Dark Mode",
+        "toggle_legend": "👁️ Show Legend",
         "daily_advice": "📌 Show daily advice",
         "weekly_summary": "🗓️ Weekly summary",
+        "start_new_week_reset": "🆕 Start new week (reset data)",
         "export_excel": "📈 Export to Excel",
         "export_csv": "📋 Export to CSV",
         "export_json": "📄 Export to JSON",
         "about": "ℹ️ About",
         "instructions": "📖 Instructions",
+        "capital_edit_mode": "💹 Capital edit mode",
+        
+        # Menu StatusTips
+        "status_save_week": "Save current week's data",
+        "status_load_week": "Load data from file",
+        "status_load_db": "Load saved data from database",
+        "status_set_capital": "Set the week's initial capital",
+        "status_exit": "Exit the application",
+        "status_dark_mode": "Toggle dark mode",
+        "status_toggle_legend": "Show or hide the chart legend",
+        "status_daily_advice": "View recommendations for the current day",
+        "status_weekly_summary": "Show summary with withdrawal and reinvestment suggestion",
+        "status_start_new_week_reset": "Create a new week with zeroed data and updated capital",
+        "status_export_excel": "Export data to Excel (.xlsx)",
+        "status_export_csv": "Export data to CSV",
+        "status_export_json": "Export data to JSON",
+        "status_about": "Information about the application",
+        "status_instructions": "View usage instructions",
+        "status_capital_edit_mode": "Edit day amount by initial/current capital",
         
         # Languages
         "spanish": "Spanish",
@@ -185,9 +272,16 @@ TRANSLATIONS = {
         # Capital dialog
         "capital_label": "Initial Capital:",
         "capital_tooltip": "Enter initial capital for the week",
+        "capital_placeholder": "e.g.: 100.00",
+        "day_capital_dialog_title": "Enter day capital",
+        "initial_capital": "Initial capital",
+        "current_capital": "Current capital",
         
         # Trading table
         "day_column": "Day",
+        "date_column": "Date",
+        "type_column": "Type",
+        "comments_column": "Comments",
         "amount_column": "Amount",
         "destination_column": "Destination",
         "profit_loss_column": "P/L",
@@ -213,6 +307,19 @@ TRANSLATIONS = {
         # Chart
         "weekly_chart_title": "📊 Weekly Performance Chart",
         "profit_loss_chart": "Profit/Loss Chart",
+        "daily_performance_title": "Daily Trading Performance",
+        "weekly_performance_title": "Weekly Trading Performance",
+        "days_of_week_label": "Days of the Week",
+        "amount_axis_label": "Amount ($)",
+        "profit_loss_axis_label": "Profit/Loss ($)",
+        "average_label": "Average:",
+        "legend_gain": "Gain",
+        "legend_loss": "Loss",
+        "legend_neutral": "Neutral",
+        "legend_gain_withdrawal": "Gain (Withdrawal)",
+        "legend_gain_reinvestment": "Gain (Reinvestment)",
+        "chart_error_update": "Error updating chart",
+        "chart_error_load": "Error loading chart",
         
         # Export
         "export_success": "Export successful",
@@ -224,6 +331,20 @@ TRANSLATIONS = {
         "starting_export": "Starting export...",
         "open_file_location_question": "Do you want to open the file location?",
         "no_data_to_export": "No data to export",
+        "format_label": "Format:",
+        "format_excel_recommended": "Excel (.xlsx) - Recommended",
+        "format_csv_compatible": "CSV (.csv) - Compatible everywhere",
+        "format_json_developers": "JSON (.json) - For developers",
+        "include_charts_excel": "Include charts in Excel (if possible)",
+        "include_detailed_summary": "Include detailed summary",
+        "preview_title": "👁️ Preview",
+        "select_file": "Select file",
+        
+        # General messages
+        "initial_data_loaded_db": "Initial data loaded from database",
+        "no_previous_data_new_week": "No previous data, starting a new week",
+        "confirm_close_title": "Confirm close",
+        "close_anyway_question": "Do you want to close anyway?",
         
         # File messages
         "save_success": "Data saved successfully",
@@ -267,7 +388,19 @@ TRANSLATIONS = {
         "information": "Information",
         "confirm": "Confirm",
         "operation_completed": "Operation completed",
-        "operation_failed": "Operation failed"
+        "operation_failed": "Operation failed",
+        
+        # Load saved week dialog
+        "load_week_dialog_title": "Select saved week",
+        "load_week_action": "Load week",
+        "delete_week": "Delete week",
+        "no_saved_weeks": "No saved weeks",
+        "select_week_first": "Select a week first",
+        "confirm_delete_week_title": "Confirm deletion",
+        "confirm_delete_week_message": "Do you want to delete the selected week?",
+        "week_label": "Week",
+        "delete_success": "Week deleted successfully",
+        "delete_error": "Error deleting week"
     }
 }
 

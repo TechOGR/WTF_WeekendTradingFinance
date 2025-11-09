@@ -397,9 +397,9 @@ class ThemeManager:
             
             /* QStatusBar */
             QStatusBar {
-                background-color: #34495e;
+                background-color: #1e1e1e;
                 color: #ecf0f1;
-                border-top: 1px solid #7f8c8d;
+                border-top: 1px solid #2a2a2a;
             }
             
             /* QLabel */
@@ -409,12 +409,13 @@ class ThemeManager:
             }
             
             QLabel#summary_title {
-                background-color: #3498db;
-                color: white;
+                background-color: #1e1e1e;
+                color: #e0e0e0;
                 font-size: 14pt;
                 font-weight: bold;
                 padding: 10px;
                 border-radius: 5px;
+                border: 1px solid #2a2a2a;
             }
             
             QLabel#summary_value {
@@ -434,19 +435,19 @@ class ThemeManager:
             
             /* QTextEdit */
             QTextEdit {
-                background-color: #34495e;
-                border: 1px solid #7f8c8d;
+                background-color: #1e1e1e;
+                border: 1px solid #2a2a2a;
                 border-radius: 4px;
                 padding: 8px;
                 color: #ecf0f1;
-                selection-background-color: #3498db;
+                selection-background-color: #8ab4f8;
                 selection-color: white;
             }
             
             /* QFrame */
             QFrame {
-                background-color: #34495e;
-                border: 1px solid #7f8c8d;
+                background-color: #1e1e1e;
+                border: 1px solid #2a2a2a;
                 border-radius: 5px;
             }
         """
@@ -614,7 +615,7 @@ class ThemeManager:
                 }
                 
                 QDialog QPushButton, QFileDialog QPushButton, QInputDialog QPushButton, QMessageBox QPushButton {
-                    background-color: #0066cc;
+                    background-color: #3b82f6; /* azul elegante */
                     color: white;
                     border: none;
                     border-radius: 4px;
@@ -624,11 +625,11 @@ class ThemeManager:
                 }
                 
                 QDialog QPushButton:hover, QFileDialog QPushButton:hover, QInputDialog QPushButton:hover, QMessageBox QPushButton:hover {
-                    background-color: #0078f0;
+                    background-color: #2563eb;
                 }
                 
                 QDialog QPushButton:pressed, QFileDialog QPushButton:pressed, QInputDialog QPushButton:pressed, QMessageBox QPushButton:pressed {
-                    background-color: #0055aa;
+                    background-color: #1d4ed8;
                 }
             """
         else:
@@ -682,8 +683,8 @@ class ThemeManager:
             return """
                 /* Estilos específicos para widgets personalizados en modo oscuro */
                 QFrame#summary_frame {
-                    background-color: #34495e;
-                    border: 1px solid #7f8c8d;
+                    background-color: #1e1e1e;
+                    border: 1px solid #2a2a2a;
                     border-radius: 5px;
                 }
                 

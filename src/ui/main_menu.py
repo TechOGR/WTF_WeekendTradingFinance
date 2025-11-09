@@ -5,8 +5,9 @@ Menú principal con opción de modo oscuro
 from PyQt5.QtWidgets import (QMenuBar, QMenu, QAction, QMessageBox, QFileDialog,
                              QApplication, QStyle)
 from PyQt5.QtCore import pyqtSignal, Qt
-from PyQt5.QtGui import QIcon, QKeySequence
+from PyQt5.QtGui import QIcon, QKeySequence, QPixmap
 import os
+import sys
 from src.utils.i18n import tr, set_language as set_global_language
 from src.utils.i18n import current_language as i18n_current_language
 
@@ -19,8 +20,12 @@ class MainMenuBar(QMenuBar):
     load_from_db_triggered = pyqtSignal()
     set_capital_triggered = pyqtSignal()
     theme_changed = pyqtSignal(bool)  # True para modo oscuro
+    legend_visibility_changed = pyqtSignal(bool)
+    day_capital_edit_mode_changed = pyqtSignal(bool)
     show_daily_advice_triggered = pyqtSignal()
+    daily_advice_visibility_changed = pyqtSignal(bool)
     show_weekly_summary_triggered = pyqtSignal()
+    start_new_week_triggered = pyqtSignal()
     export_excel_triggered = pyqtSignal()
     export_csv_triggered = pyqtSignal()
     export_json_triggered = pyqtSignal()
@@ -44,20 +49,20 @@ class MainMenuBar(QMenuBar):
         # Acción Guardar
         self._actions['save'] = QAction(tr('save_week'), self)
         self._actions['save'].setShortcut(QKeySequence.Save)
-        self._actions['save'].setStatusTip('Guardar datos de la semana actual')
+        self._actions['save'].setStatusTip(tr('status_save_week'))
         self._actions['save'].triggered.connect(self.save_triggered.emit)
         self._menus['file'].addAction(self._actions['save'])
         
         # Acción Cargar
         self._actions['load'] = QAction(tr('load_week'), self)
         self._actions['load'].setShortcut(QKeySequence.Open)
-        self._actions['load'].setStatusTip('Cargar datos desde archivo')
+        self._actions['load'].setStatusTip(tr('status_load_week'))
         self._actions['load'].triggered.connect(self.load_triggered.emit)
         self._menus['file'].addAction(self._actions['load'])
         
         # Acción Cargar desde BD
         self._actions['load_db'] = QAction(tr('load_from_db'), self)
-        self._actions['load_db'].setStatusTip('Cargar datos guardados en la base de datos')
+        self._actions['load_db'].setStatusTip(tr('status_load_db'))
         self._actions['load_db'].triggered.connect(self.load_from_db_triggered.emit)
         self._menus['file'].addAction(self._actions['load_db'])
         
@@ -65,7 +70,7 @@ class MainMenuBar(QMenuBar):
         
         # Acción Establecer Capital Inicial
         self._actions['set_capital'] = QAction(tr('set_capital'), self)
-        self._actions['set_capital'].setStatusTip('Configurar el capital inicial de la semana')
+        self._actions['set_capital'].setStatusTip(tr('status_set_capital'))
         self._actions['set_capital'].triggered.connect(self.set_capital_triggered.emit)
         self._menus['file'].addAction(self._actions['set_capital'])
         
@@ -74,7 +79,7 @@ class MainMenuBar(QMenuBar):
         # Acción Salir
         self._actions['exit'] = QAction(tr('exit'), self)
         self._actions['exit'].setShortcut(QKeySequence.Quit)
-        self._actions['exit'].setStatusTip('Salir de la aplicación')
+        self._actions['exit'].setStatusTip(tr('status_exit'))
         self._actions['exit'].triggered.connect(self.parent().close)
         self._menus['file'].addAction(self._actions['exit'])
         
@@ -84,40 +89,67 @@ class MainMenuBar(QMenuBar):
         # Acción Modo Oscuro
         self.dark_mode_action = QAction(tr('dark_mode'), self)
         self.dark_mode_action.setCheckable(True)
-        self.dark_mode_action.setStatusTip('Activar/desactivar modo oscuro')
+        self.dark_mode_action.setStatusTip(tr('status_dark_mode'))
         self.dark_mode_action.triggered.connect(self.toggle_dark_mode)
         self._menus['view'].addAction(self.dark_mode_action)
         self._actions['dark_mode'] = self.dark_mode_action
+
+        # Acción Mostrar/Ocultar Leyenda
+        self.legend_toggle_action = QAction(tr('toggle_legend'), self)
+        self.legend_toggle_action.setCheckable(True)
+        self.legend_toggle_action.setChecked(True)
+        self.legend_toggle_action.setStatusTip(tr('status_toggle_legend'))
+        self.legend_toggle_action.toggled.connect(self.legend_visibility_changed.emit)
+        self._menus['view'].addAction(self.legend_toggle_action)
+        self._actions['toggle_legend'] = self.legend_toggle_action
+
+        # Acción Modo edición por capital
+        self.capital_edit_mode_action = QAction(tr('capital_edit_mode'), self)
+        self.capital_edit_mode_action.setCheckable(True)
+        self.capital_edit_mode_action.setStatusTip(tr('status_capital_edit_mode'))
+        self.capital_edit_mode_action.toggled.connect(self.day_capital_edit_mode_changed.emit)
+        self._menus['view'].addAction(self.capital_edit_mode_action)
+        self._actions['capital_edit_mode'] = self.capital_edit_mode_action
         
         # Menú Asistente
         self._menus['assistant'] = self.addMenu(tr('menu_assistant'))
         self._actions['daily_advice'] = QAction(tr('daily_advice'), self)
-        self._actions['daily_advice'].setStatusTip('Ver recomendaciones según el día actual')
+        self._actions['daily_advice'].setCheckable(True)
+        self._actions['daily_advice'].setChecked(True)
+        self._actions['daily_advice'].setStatusTip(tr('status_daily_advice'))
+        # toggle de visibilidad y disparar actualización de contenido
+        self._actions['daily_advice'].toggled.connect(self.daily_advice_visibility_changed.emit)
         self._actions['daily_advice'].triggered.connect(self.show_daily_advice_triggered.emit)
         self._menus['assistant'].addAction(self._actions['daily_advice'])
 
         self._actions['weekly_summary'] = QAction(tr('weekly_summary'), self)
-        self._actions['weekly_summary'].setStatusTip('Mostrar resumen con sugerencia de retiro y reinversión')
+        self._actions['weekly_summary'].setStatusTip(tr('status_weekly_summary'))
         self._actions['weekly_summary'].triggered.connect(self.show_weekly_summary_triggered.emit)
         self._menus['assistant'].addAction(self._actions['weekly_summary'])
+
+        # Acción: Empezar nueva semana (reiniciar datos)
+        self._actions['start_new_week_reset'] = QAction(tr('start_new_week_reset'), self)
+        self._actions['start_new_week_reset'].setStatusTip(tr('status_start_new_week_reset'))
+        self._actions['start_new_week_reset'].triggered.connect(self.start_new_week_triggered.emit)
+        self._menus['assistant'].addAction(self._actions['start_new_week_reset'])
         
         # Menú Exportar
         self._menus['export'] = self.addMenu(tr('menu_export'))
         
         self._actions['export_excel'] = QAction(tr('export_excel'), self)
         self._actions['export_excel'].setShortcut('Ctrl+E')
-        self._actions['export_excel'].setStatusTip('Exportar datos a formato Excel (.xlsx)')
+        self._actions['export_excel'].setStatusTip(tr('status_export_excel'))
         self._actions['export_excel'].triggered.connect(self.export_excel_triggered)
         self._menus['export'].addAction(self._actions['export_excel'])
         
         self._actions['export_csv'] = QAction(tr('export_csv'), self)
         self._actions['export_csv'].setShortcut('Ctrl+Shift+C')
-        self._actions['export_csv'].setStatusTip('Exportar datos a formato CSV')
+        self._actions['export_csv'].setStatusTip(tr('status_export_csv'))
         self._actions['export_csv'].triggered.connect(self.export_csv_triggered)
         self._menus['export'].addAction(self._actions['export_csv'])
         
         self._actions['export_json'] = QAction(tr('export_json'), self)
-        self._actions['export_json'].setStatusTip('Exportar datos a formato JSON')
+        self._actions['export_json'].setStatusTip(tr('status_export_json'))
         self._actions['export_json'].triggered.connect(self.export_json_triggered)
         self._menus['export'].addAction(self._actions['export_json'])
         
@@ -126,13 +158,13 @@ class MainMenuBar(QMenuBar):
         
         # Acción Acerca de
         self._actions['about'] = QAction(tr('about'), self)
-        self._actions['about'].setStatusTip('Información sobre la aplicación')
+        self._actions['about'].setStatusTip(tr('status_about'))
         self._actions['about'].triggered.connect(self.show_about)
         self._menus['help'].addAction(self._actions['about'])
         
         # Acción Instrucciones
         self._actions['instructions'] = QAction(tr('instructions'), self)
-        self._actions['instructions'].setStatusTip('Ver instrucciones de uso')
+        self._actions['instructions'].setStatusTip(tr('status_instructions'))
         self._actions['instructions'].triggered.connect(self.show_instructions)
         self._menus['help'].addAction(self._actions['instructions'])
 
@@ -297,10 +329,16 @@ class MainMenuBar(QMenuBar):
             self._actions['exit'].setText(tr('exit'))
         if 'dark_mode' in self._actions:
             self._actions['dark_mode'].setText(tr('dark_mode'))
+        if 'toggle_legend' in self._actions:
+            self._actions['toggle_legend'].setText(tr('toggle_legend'))
+        if 'capital_edit_mode' in self._actions:
+            self._actions['capital_edit_mode'].setText(tr('capital_edit_mode'))
         if 'daily_advice' in self._actions:
             self._actions['daily_advice'].setText(tr('daily_advice'))
         if 'weekly_summary' in self._actions:
             self._actions['weekly_summary'].setText(tr('weekly_summary'))
+        if 'start_new_week_reset' in self._actions:
+            self._actions['start_new_week_reset'].setText(tr('start_new_week_reset'))
         if 'export_excel' in self._actions:
             self._actions['export_excel'].setText(tr('export_excel'))
         if 'export_csv' in self._actions:
@@ -315,6 +353,40 @@ class MainMenuBar(QMenuBar):
             self._actions['lang_es'].setText('🇪🇸 ' + tr('spanish'))
         if 'lang_en' in self._actions:
             self._actions['lang_en'].setText('🇺🇸 ' + tr('english'))
+
+        # StatusTips
+        if 'save' in self._actions:
+            self._actions['save'].setStatusTip(tr('status_save_week'))
+        if 'load' in self._actions:
+            self._actions['load'].setStatusTip(tr('status_load_week'))
+        if 'load_db' in self._actions:
+            self._actions['load_db'].setStatusTip(tr('status_load_db'))
+        if 'set_capital' in self._actions:
+            self._actions['set_capital'].setStatusTip(tr('status_set_capital'))
+        if 'exit' in self._actions:
+            self._actions['exit'].setStatusTip(tr('status_exit'))
+        if 'dark_mode' in self._actions:
+            self._actions['dark_mode'].setStatusTip(tr('status_dark_mode'))
+        if 'toggle_legend' in self._actions:
+            self._actions['toggle_legend'].setStatusTip(tr('status_toggle_legend'))
+        if 'capital_edit_mode' in self._actions:
+            self._actions['capital_edit_mode'].setStatusTip(tr('status_capital_edit_mode'))
+        if 'daily_advice' in self._actions:
+            self._actions['daily_advice'].setStatusTip(tr('status_daily_advice'))
+        if 'weekly_summary' in self._actions:
+            self._actions['weekly_summary'].setStatusTip(tr('status_weekly_summary'))
+        if 'start_new_week_reset' in self._actions:
+            self._actions['start_new_week_reset'].setStatusTip(tr('status_start_new_week_reset'))
+        if 'export_excel' in self._actions:
+            self._actions['export_excel'].setStatusTip(tr('status_export_excel'))
+        if 'export_csv' in self._actions:
+            self._actions['export_csv'].setStatusTip(tr('status_export_csv'))
+        if 'export_json' in self._actions:
+            self._actions['export_json'].setStatusTip(tr('status_export_json'))
+        if 'about' in self._actions:
+            self._actions['about'].setStatusTip(tr('status_about'))
+        if 'instructions' in self._actions:
+            self._actions['instructions'].setStatusTip(tr('status_instructions'))
     
     def show_about(self):
         """Mostrar diálogo Acerca de"""
@@ -367,6 +439,7 @@ class MainMenuBar(QMenuBar):
                 <li>Ingresa el monto del día</li>
                 <li>Selecciona el destino (Retiro Personal o Reinversión)</li>
                 <li>Los cambios se guardan automáticamente</li>
+                <li><strong>Modo edición por capital:</strong> Actívalo en Vista para abrir un diálogo al hacer doble clic en el monto del día y calcular Ganancia/Pérdida a partir del capital inicial y actual.</li>
             </ul>
             <h4>💾 Guardar y Cargar:</h4>
             <ul>
@@ -378,6 +451,7 @@ class MainMenuBar(QMenuBar):
             <h4>🎨 Personalización:</h4>
             <ul>
                 <li>Vista → Modo Oscuro para cambiar el tema</li>
+                <li>Vista → Modo edición por capital para editar por capital</li>
                 <li>Los gráficos se actualizan automáticamente</li>
                 <li>El análisis AI se genera con cada cambio</li>
             </ul>
@@ -399,6 +473,7 @@ class MainMenuBar(QMenuBar):
                 <li>Enter the day amount</li>
                 <li>Select destination (Personal Withdrawal or Reinvestment)</li>
                 <li>Changes are saved automatically</li>
+                <li><strong>Capital edit mode:</strong> Enable it under View to open a dialog on double-click of the day amount and compute Profit/Loss from initial and current capital.</li>
             </ul>
             <h4>💾 Save and Load:</h4>
             <ul>
@@ -410,6 +485,7 @@ class MainMenuBar(QMenuBar):
             <h4>🎨 Personalization:</h4>
             <ul>
                 <li>View → Dark Mode to change theme</li>
+                <li>View → Capital edit mode to edit by capital</li>
                 <li>Charts update automatically</li>
                 <li>AI analysis is generated on each change</li>
             </ul>
@@ -422,4 +498,25 @@ class MainMenuBar(QMenuBar):
             </ul>
             <p><strong>💡 Tip:</strong> Use AI analysis to improve your trading strategy.</p>
             """
-        QMessageBox.information(self, title, content)
+        # Usar QMessageBox explícito y establecer icono con ruta absoluta base_dir/src/images
+        base_dir = os.path.dirname(sys.executable) if getattr(sys, 'frozen', False) else os.path.abspath(os.getcwd())
+        images_dir = os.path.join(base_dir, 'src', 'images')
+        logo_png = os.path.join(images_dir, 'logo.png')
+        pixmap = QPixmap(logo_png).scaled(64, 64, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+
+        msg = QMessageBox(self)
+        msg.setIconPixmap(pixmap)
+        msg.setWindowTitle(title)
+        msg.setTextFormat(Qt.RichText)
+        msg.setText(content)
+        msg.setStandardButtons(QMessageBox.Ok)
+
+        try:
+            if os.path.exists(logo_png):
+                msg.setWindowIcon(QIcon(logo_png))
+            elif os.path.exists(fallback_svg):
+                msg.setWindowIcon(QIcon(fallback_svg))
+        except Exception as e:
+            print(f"Error al asignar icono al diálogo de instrucciones: {e}")
+
+        msg.exec_()

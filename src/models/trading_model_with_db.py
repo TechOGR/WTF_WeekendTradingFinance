@@ -183,3 +183,32 @@ class TradingDataModelWithDB(TradingDataModel):
             'total_profit_loss': self.get_total_profit_loss(),
             'profit_loss_percentage': self.get_profit_loss_percentage()
         }
+
+    def start_new_week(self, next_monday_date, new_initial_capital: float) -> bool:
+        """Inicializar una nueva semana con fecha de lunes próximo y capital inicial dado.
+        Reinicia los montos/destinos diarios a 0 y guarda en BD.
+        next_monday_date: objeto date (datetime.date) que representa el lunes próximo.
+        """
+        try:
+            from datetime import date
+            # Validar tipo de fecha
+            if hasattr(next_monday_date, 'isoformat'):
+                self.week_start_date = next_monday_date
+            else:
+                # Intentar convertir desde string
+                from datetime import datetime
+                self.week_start_date = datetime.fromisoformat(str(next_monday_date)).date()
+
+            # Establecer capital inicial para la nueva semana
+            self.initial_capital = max(0.0, float(new_initial_capital or 0.0))
+
+            # Reiniciar datos diarios y destinos al valor por defecto
+            self.data = {day: {'amount': 0.0, 'destination': self.destinations[day]} for day in self.days}
+            self.daily_amounts = {day: 0.0 for day in self.days}
+            self.daily_destinations = self.destinations.copy()
+
+            # Guardar registro de nueva semana en la base de datos
+            return self.db_manager.save_weekly_data(self.to_dict())
+        except Exception as e:
+            print(f"Error al iniciar nueva semana: {e}")
+            return False

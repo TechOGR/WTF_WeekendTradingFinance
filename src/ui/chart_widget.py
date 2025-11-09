@@ -8,12 +8,15 @@ from matplotlib.figure import Figure
 from PyQt5.QtWidgets import QWidget, QVBoxLayout
 import pandas as pd
 import numpy as np
+from src.utils.i18n import tr
 
 class ChartWidget(QWidget):
     """Widget de gráficos mejorado para mostrar el rendimiento de trading"""
     
     def __init__(self):
         super().__init__()
+        self.legend_visible = True
+        self.legend_position = 'outside_right'
         self.setup_chart()
     
     def setup_chart(self):
@@ -29,9 +32,9 @@ class ChartWidget(QWidget):
         
         # Configurar estilo inicial
         self.ax = self.figure.add_subplot(111)
-        self.ax.set_title('Rendimiento Diario de Trading', fontsize=14, fontweight='bold', pad=20)
-        self.ax.set_xlabel('Días de la Semana', fontsize=12)
-        self.ax.set_ylabel('Ganancia/Pérdida ($)', fontsize=12)
+        self.ax.set_title(tr('daily_performance_title'), fontsize=14, fontweight='bold', pad=20)
+        self.ax.set_xlabel(tr('days_of_week_label'), fontsize=12)
+        self.ax.set_ylabel(tr('profit_loss_axis_label'), fontsize=12)
         
         # Mejorar la cuadrícula
         self.ax.grid(True, alpha=0.3, linestyle='--', linewidth=0.5)
@@ -44,12 +47,14 @@ class ChartWidget(QWidget):
     
     def update_chart(self, data: dict):
         """Actualizar el gráfico con nuevos datos"""
+        # Guardar referencia para poder regenerar con nuevo idioma
+        self.last_data = data
         self.ax.clear()
         
         # Configurar el gráfico nuevamente
-        self.ax.set_title('Rendimiento Diario de Trading', fontsize=14, fontweight='bold', pad=20)
-        self.ax.set_xlabel('Días de la Semana', fontsize=12)
-        self.ax.set_ylabel('Ganancia/Pérdida ($)', fontsize=12)
+        self.ax.set_title(tr('daily_performance_title'), fontsize=14, fontweight='bold', pad=20)
+        self.ax.set_xlabel(tr('days_of_week_label'), fontsize=12)
+        self.ax.set_ylabel(tr('profit_loss_axis_label'), fontsize=12)
         self.ax.grid(True, alpha=0.3, linestyle='--', linewidth=0.5)
         self.ax.set_axisbelow(True)
         self.ax.axhline(y=0, color='black', linestyle='-', alpha=0.5, linewidth=1)
@@ -63,7 +68,7 @@ class ChartWidget(QWidget):
         colors = []
         for i, (amount, destination) in enumerate(zip(amounts, destinations)):
             if amount > 0:
-                if destination == "Retiro Personal":
+                if destination in (tr('personal_withdrawal'), "Retiro Personal"):
                     colors.append('#2ecc71')  # Verde brillante para retiros positivos
                 else:
                     colors.append('#27ae60')  # Verde más oscuro para reinversión
@@ -122,25 +127,64 @@ class ChartWidget(QWidget):
         self.ax.set_xticks(range(len(days)))
         self.ax.set_xticklabels(days, rotation=0, ha='center')
         
-        # Añadir leyenda mejorada
+        # Añadir leyenda mejorada sin solapar la barra del viernes
         from matplotlib.patches import Patch
-        legend_elements = [
-            Patch(facecolor='#2ecc71', label='Ganancia (Retiro)'),
-            Patch(facecolor='#27ae60', label='Ganancia (Reinversión)'),
-            Patch(facecolor='#e74c3c', label='Pérdida'),
-            Patch(facecolor='#95a5a6', label='Neutro')
-        ]
-        self.ax.legend(handles=legend_elements, loc='upper right', 
-                      frameon=True, fancybox=True, shadow=True)
+        if self.legend_visible:
+            legend_elements = [
+                Patch(facecolor='#27ae60', label=tr('legend_gain_reinvestment')),
+                Patch(facecolor='#2ecc71', label=tr('legend_gain_withdrawal')),
+                Patch(facecolor='#e74c3c', label=tr('legend_loss')),
+                Patch(facecolor='#95a5a6', label=tr('legend_neutral'))
+            ]
+            if self.legend_position == 'outside_right':
+                self.ax.legend(handles=legend_elements, loc='upper left', bbox_to_anchor=(1.02, 1),
+                               frameon=True, fancybox=True, shadow=True)
+                try:
+                    self.figure.tight_layout(pad=2.0, rect=[0, 0, 0.82, 1])
+                except Exception:
+                    self.figure.tight_layout(pad=2.0)
+            elif self.legend_position == 'upper_center':
+                self.ax.legend(handles=legend_elements, loc='upper center', bbox_to_anchor=(0.5, 1.12),
+                               frameon=True, fancybox=True, shadow=True, ncol=2)
+            else:
+                self.ax.legend(handles=legend_elements, loc='upper right',
+                               frameon=True, fancybox=True, shadow=True)
         
         # Ajustar márgenes
-        self.figure.tight_layout(pad=2.0)
+        try:
+            if self.legend_visible and self.legend_position == 'outside_right':
+                self.figure.tight_layout(pad=2.0, rect=[0, 0, 0.82, 1])
+            else:
+                self.figure.tight_layout(pad=2.0)
+        except Exception:
+            self.figure.tight_layout(pad=2.0)
         
         # Actualizar canvas
         self.canvas.draw()
     
+    def apply_language(self):
+        """Actualizar idioma del gráfico"""
+        # Si hay datos cargados, regenerar el gráfico con nuevas traducciones
+        if hasattr(self, 'last_data') and self.last_data:
+            self.update_chart(self.last_data)
+
     def clear_chart(self):
         """Limpiar el gráfico"""
         self.ax.clear()
         self.setup_chart()
         self.canvas.draw()
+
+    def set_legend_visible(self, visible: bool):
+        """Mostrar u ocultar la leyenda y redibujar."""
+        self.legend_visible = bool(visible)
+        if hasattr(self, 'last_data') and self.last_data:
+            self.update_chart(self.last_data)
+
+    def set_legend_position(self, position: str):
+        """Cambiar la posición de la leyenda y redibujar.
+        Posiciones soportadas: 'outside_right', 'upper_right', 'upper_center'
+        """
+        if position in ('outside_right', 'upper_right', 'upper_center'):
+            self.legend_position = position
+            if hasattr(self, 'last_data') and self.last_data:
+                self.update_chart(self.last_data)

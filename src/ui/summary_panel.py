@@ -14,6 +14,9 @@ class SummaryPanel(QWidget):
     def __init__(self):
         super().__init__()
         self.setup_ui()
+        # Mantener últimos datos para re-aplicar colores al cambiar tema
+        self.last_summary = {}
+        self.last_capital = {}
     
     def setup_ui(self):
         """Configurar la interfaz del panel"""
@@ -189,6 +192,11 @@ class SummaryPanel(QWidget):
     
     def update_summary(self, summary_data: dict, ai_analysis: dict, capital_data: dict = None):
         """Actualizar el panel con nuevos datos"""
+        # Guardar últimos datos
+        if summary_data is not None:
+            self.last_summary = summary_data
+        if capital_data is not None:
+            self.last_capital = capital_data
         # Actualizar información del capital
         if capital_data:
             initial_capital = capital_data.get('initial_capital', 100.0)
@@ -206,10 +214,8 @@ class SummaryPanel(QWidget):
             profit_text = f"{tr('total_profit_loss')} ${total_profit_loss:.2f} ({profit_loss_percentage:.2f}%)"
             self.profit_loss_label.setText(profit_text)
             
-            if total_profit_loss >= 0:
-                self.profit_loss_label.setStyleSheet("font-size: 13pt; font-weight: bold; color: #27ae60;")
-            else:
-                self.profit_loss_label.setStyleSheet("font-size: 13pt; font-weight: bold; color: #e74c3c;")
+            # Color se ajusta dinámicamente según el signo
+            self._apply_dynamic_colors()
         
         # Actualizar valores principales (total semanal tradicional)
         total = summary_data.get('total_weekly', 0)
@@ -227,10 +233,7 @@ class SummaryPanel(QWidget):
         self.performance_label.setText(f"{performance:.2f}%")
         
         # Color del rendimiento
-        if performance >= 0:
-            self.performance_label.setStyleSheet("font-size: 12pt; font-weight: bold; color: #27ae60;")
-        else:
-            self.performance_label.setStyleSheet("font-size: 12pt; font-weight: bold; color: #e74c3c;")
+        self._apply_dynamic_colors()
         
         self.days_label.setText(tr("days_label").format(positive=positive_days, negative=negative_days))
         
@@ -519,4 +522,70 @@ class SummaryPanel(QWidget):
                     font-size: 9pt;
                 }
                 """
+            )
+        # Re-aplicar colores dinámicos (positivo/negativo) según valores actuales
+        try:
+            self._apply_dynamic_colors()
+        except Exception:
+            pass
+
+    def _apply_dynamic_colors(self):
+        """Ajustar colores de labels dependientes de valores actuales y tema."""
+        # Determinar ganancia/pérdida total
+        total_profit_loss = None
+        if self.last_capital and 'total_profit_loss' in self.last_capital:
+            total_profit_loss = self.last_capital.get('total_profit_loss')
+        else:
+            # Intentar parsear del texto del label
+            import re
+            text = self.profit_loss_label.text()
+            m = re.search(r"[-+]?\$?([\d,.]+)", text)
+            if m:
+                try:
+                    num = m.group(1).replace(',', '')
+                    total_profit_loss = float(num)
+                except Exception:
+                    total_profit_loss = None
+
+        # Determinar rendimiento (%)
+        performance = None
+        if self.last_summary and 'performance_percentage' in self.last_summary:
+            performance = self.last_summary.get('performance_percentage')
+        else:
+            import re
+            ptext = self.performance_label.text()
+            mp = re.search(r"([-+]?\d+(?:\.\d+)?)%", ptext)
+            if mp:
+                try:
+                    performance = float(mp.group(1))
+                except Exception:
+                    performance = None
+
+        # Colores según tema
+        positive_color = "#27ae60"  # verde
+        negative_color = "#e74c3c"  # rojo
+        neutral_text_color_dark = "#e0e0e0"
+        neutral_text_color_light = "#2c3e50"
+
+        # profit/loss
+        if total_profit_loss is not None:
+            if total_profit_loss >= 0:
+                self.profit_loss_label.setStyleSheet("font-size: 13pt; font-weight: bold; color: %s;" % positive_color)
+            else:
+                self.profit_loss_label.setStyleSheet("font-size: 13pt; font-weight: bold; color: %s;" % negative_color)
+        else:
+            # Neutral según tema
+            self.profit_loss_label.setStyleSheet(
+                "font-size: 13pt; font-weight: bold; color: %s;" % (neutral_text_color_dark if self.is_dark else neutral_text_color_light)
+            )
+
+        # performance
+        if performance is not None:
+            if performance >= 0:
+                self.performance_label.setStyleSheet("font-size: 12pt; font-weight: bold; color: %s;" % positive_color)
+            else:
+                self.performance_label.setStyleSheet("font-size: 12pt; font-weight: bold; color: %s;" % negative_color)
+        else:
+            self.performance_label.setStyleSheet(
+                "font-size: 12pt; font-weight: bold; color: %s;" % (neutral_text_color_dark if self.is_dark else neutral_text_color_light)
             )

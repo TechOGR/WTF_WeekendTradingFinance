@@ -14,6 +14,7 @@ from typing import Dict, List, Optional, Any
 from PyQt5.QtWidgets import QFileDialog, QMessageBox
 from PyQt5.QtCore import QObject, pyqtSignal
 import xlsxwriter
+from .i18n import tr
 
 
 class ExportManager(QObject):
@@ -145,140 +146,212 @@ class ExportManager(QObject):
         return default
     
     def export_to_excel(self, data: Dict[str, Any], file_path: str, week_number: int) -> bool:
-        """Exporta datos a formato Excel con formato profesional."""
+        """Exporta datos a formato Excel con estilo profesional y gráficos."""
         try:
-            # Crear workbook de xlsxwriter para mejor formato
+            # Crear workbook de xlsxwriter
             workbook = xlsxwriter.Workbook(file_path)
-            
-            # Definir formatos
+
+            # Paleta y formatos
             header_format = workbook.add_format({
                 'bold': True,
                 'font_color': 'white',
-                'bg_color': '#4472C4',
+                'bg_color': '#1F4E79',  # azul profundo
                 'border': 1,
                 'align': 'center',
                 'valign': 'vcenter'
             })
-            
+
             money_format = workbook.add_format({
                 'num_format': '$#,##0.00',
                 'border': 1,
                 'align': 'right'
             })
-            
+            green_money_format = workbook.add_format({
+                'num_format': '$#,##0.00',
+                'border': 1,
+                'align': 'right',
+                'font_color': '#1E8449'  # verde
+            })
+            red_money_format = workbook.add_format({
+                'num_format': '$#,##0.00',
+                'border': 1,
+                'align': 'right',
+                'font_color': '#C0392B'  # rojo
+            })
+
             percentage_format = workbook.add_format({
                 'num_format': '0.00%',
                 'border': 1,
                 'align': 'right'
             })
-            
+
             date_format = workbook.add_format({
                 'num_format': 'mm/dd/yyyy',
                 'border': 1,
                 'align': 'center'
             })
-            
+
             border_format = workbook.add_format({'border': 1})
-            
-            # Crear hoja principal
-            worksheet = workbook.add_worksheet(f'Semana {week_number}')
-            
-            # Escribir encabezados
-            headers = ['Día', 'Fecha', 'Monto', 'Destino', 'Tipo', 'Comentarios']
+
+            kpi_title = workbook.add_format({'bold': True, 'font_size': 16})
+            kpi_label = workbook.add_format({'bold': True, 'bg_color': '#F2F2F2', 'border': 1})
+            kpi_value_currency = workbook.add_format({'num_format': '$#,##0.00', 'border': 1, 'bold': True})
+            kpi_value_number = workbook.add_format({'border': 1, 'bold': True})
+            kpi_value_percent = workbook.add_format({'num_format': '0.00%', 'border': 1, 'bold': True})
+
+            # Hoja de datos diarios
+            sheet_name = f"{tr('week')} {week_number}"
+            worksheet = workbook.add_worksheet(sheet_name)
+
+            # Encabezados
+            headers = [
+                tr('day_column'),
+                'Fecha' if tr('monday') == 'Lunes' else 'Date',
+                tr('amount_column'),
+                tr('destination_column'),
+                tr('type_column') if tr('type_column', None) != 'type_column' else ('Tipo' if tr('monday') == 'Lunes' else 'Type'),
+                tr('comments_column') if tr('comments_column', None) != 'comments_column' else ('Comentarios' if tr('monday') == 'Lunes' else 'Comments')
+            ]
             for col, header in enumerate(headers):
                 worksheet.write(0, col, header, header_format)
-            
-            # Escribir datos diarios
+
+            # Datos diarios
             row = 1
             daily_data = self._normalize_daily_data(data)
-            
             for day, day_data in daily_data.items():
-                # Información básica
                 worksheet.write(row, 0, day.capitalize(), border_format)
                 worksheet.write(row, 1, day_data.get('date', ''), date_format)
-                
-                # Monto con formato de dinero
                 amount = day_data.get('amount', 0)
-                if amount != 0:
-                    worksheet.write(row, 2, amount, money_format)
+                if amount > 0:
+                    worksheet.write(row, 2, amount, green_money_format)
+                elif amount < 0:
+                    worksheet.write(row, 2, amount, red_money_format)
                 else:
                     worksheet.write(row, 2, '', border_format)
-                
-                # Destino y tipo
                 worksheet.write(row, 3, day_data.get('destination', ''), border_format)
                 worksheet.write(row, 4, day_data.get('type', ''), border_format)
                 worksheet.write(row, 5, day_data.get('comments', ''), border_format)
-                
                 row += 1
-            
-            # Agregar resumen
-            summary_start_row = row + 2
-            
-            # Título del resumen
-            summary_format = workbook.add_format({
-                'bold': True,
-                'font_size': 14,
-                'bg_color': '#D9E1F2',
-                'border': 1
+
+            last_row = row - 1
+
+            # Tabla y estilos de la sección diaria
+            worksheet.add_table(0, 0, last_row, 5, {
+                'style': 'Table Style Medium 9',
+                'columns': [{'header': h} for h in headers]
             })
-            
-            worksheet.write(summary_start_row, 0, 'RESUMEN SEMANAL', summary_format)
-            worksheet.merge_range(summary_start_row, 0, summary_start_row, 2, 'RESUMEN SEMANAL', summary_format)
-            
-            # Métricas del resumen
-            summary_data = [
-                ['Capital Inicial:', self._summary_field(data, 'initial_capital', default=0), money_format],
-                ['Total Semanal:', self._summary_field(data, 'weekly_total', 'total_weekly', 'total_profit_loss', default=0), money_format],
-                ['Rendimiento:', self._summary_field(data, 'performance_percentage', 'profit_loss_percentage', default=0)/100 if self._summary_field(data, 'performance_percentage', 'profit_loss_percentage', default=0) > 1 else self._summary_field(data, 'performance_percentage', 'profit_loss_percentage', default=0), percentage_format],
-                ['Días Positivos:', self._summary_field(data, 'positive_days', default=0), border_format],
-                ['Días Negativos:', self._summary_field(data, 'negative_days', default=0), border_format],
-                ['Total de Retiros:', self._summary_field(data, 'total_withdrawals', 'total_withdrawal', default=0), money_format],
-                ['Total Reinvertido:', self._summary_field(data, 'total_reinvestment', default=0), money_format],
-            ]
-            
-            for i, (label, value, format_style) in enumerate(summary_data):
-                worksheet.write(summary_start_row + i + 1, 0, label, border_format)
-                worksheet.write(summary_start_row + i + 1, 1, value, format_style)
-            
-            # Ajustar anchos de columna
-            column_widths = [12, 15, 15, 15, 12, 25]
+            worksheet.freeze_panes(1, 0)
+            column_widths = [12, 15, 15, 18, 14, 28]
             for col, width in enumerate(column_widths):
                 worksheet.set_column(col, col, width)
-            
-            # Agregar gráfico si hay datos
-            if daily_data:
-                chart_sheet = workbook.add_worksheet('Gráfico')
-                
-                # Copiar datos para gráfico
-                chart_row = 0
-                chart_sheet.write(chart_row, 0, 'Día', header_format)
-                chart_sheet.write(chart_row, 1, 'Monto', header_format)
+
+            # Formato condicional en montos
+            worksheet.conditional_format(1, 2, last_row, 2, {
+                'type': 'cell', 'criteria': '>', 'value': 0, 'format': green_money_format
+            })
+            worksheet.conditional_format(1, 2, last_row, 2, {
+                'type': 'cell', 'criteria': '<', 'value': 0, 'format': red_money_format
+            })
+
+            # Hoja de resumen (KPIs)
+            summary_sheet = workbook.add_worksheet('Resumen' if tr('monday') == 'Lunes' else 'Summary')
+            summary_sheet.write(0, 0, ('Resumen Semanal' if tr('monday') == 'Lunes' else 'Weekly Summary'), kpi_title)
+
+            # KPI labels
+            summary_sheet.write(2, 0, 'Capital Inicial', kpi_label)
+            summary_sheet.write(3, 0, 'Total Semanal', kpi_label)
+            summary_sheet.write(4, 0, 'Rendimiento %', kpi_label)
+            summary_sheet.write(5, 0, 'Días Positivos', kpi_label)
+            summary_sheet.write(6, 0, 'Días Negativos', kpi_label)
+
+            # KPI values (con fórmulas donde aplica)
+            initial_capital = self._summary_field(data, 'initial_capital', default=0)
+            summary_sheet.write(2, 1, initial_capital, kpi_value_currency)
+            # SUM de montos en hoja diaria
+            summary_sheet.write_formula(3, 1, f"=SUM('{sheet_name}'!C2:C{last_row})", kpi_value_currency)
+            # Rendimiento = Total / Capital
+            summary_sheet.write_formula(4, 1, f"=IF(B3>0,B4/B3,0)", kpi_value_percent)
+            summary_sheet.write_formula(5, 1, f"=COUNTIF('{sheet_name}'!C2:C{last_row},\">0\")", kpi_value_number)
+            summary_sheet.write_formula(6, 1, f"=COUNTIF('{sheet_name}'!C2:C{last_row},\"<0\")", kpi_value_number)
+            summary_sheet.set_column(0, 1, 22)
+
+            # Totales por destino (para gráfico de torta)
+            totals_by_destination = {}
+            for r in range(1, last_row + 1):
+                # Leer desde la hoja diaria por consistencia
+                # Nota: No tenemos acceso directo a valores ya escritos; usamos daily_data
+                pass
+            # Construir desde daily_data
+            for _, dd in daily_data.items():
+                dest = dd.get('destination', '') or 'Sin destino'
+                amt = dd.get('amount', 0) or 0
+                totals_by_destination[dest] = totals_by_destination.get(dest, 0) + (amt or 0)
+
+            dest_start_row = 9
+            summary_sheet.write(dest_start_row, 0, ('Totales por destino' if tr('monday') == 'Lunes' else 'Totals by destination'), kpi_label)
+            dr = dest_start_row + 1
+            for dest, total in totals_by_destination.items():
+                summary_sheet.write(dr, 0, dest, border_format)
+                summary_sheet.write(dr, 1, total, money_format)
+                dr += 1
+
+            # Hoja de gráficos
+            chart_sheet = workbook.add_worksheet('Gráficos' if tr('monday') == 'Lunes' else 'Charts')
+            chart_sheet.write(0, 0, tr('day_column'), header_format)
+            chart_sheet.write(0, 1, tr('amount_column'), header_format)
+            chart_sheet.write(0, 2, ('Acumulado' if tr('monday') == 'Lunes' else 'Cumulative'), header_format)
+
+            # Replicar nombres de días y vincular montos a la hoja diaria
+            chart_row = 1
+            for r in range(2, last_row + 1):
+                chart_sheet.write_formula(chart_row, 0, f"='{sheet_name}'!A{r}", border_format)
+                chart_sheet.write_formula(chart_row, 1, f"='{sheet_name}'!C{r}", money_format)
+                # Acumulado sobre la columna B del propio sheet
+                if chart_row == 1:
+                    chart_sheet.write_formula(chart_row, 2, "=B2", money_format)
+                else:
+                    chart_sheet.write_formula(chart_row, 2, f"=SUM(B$2:B{chart_row+1})", money_format)
                 chart_row += 1
-                
-                for day, day_data in daily_data.items():
-                    amount = day_data.get('amount', 0)
-                    if amount != 0:
-                        chart_sheet.write(chart_row, 0, day.capitalize(), border_format)
-                        chart_sheet.write(chart_row, 1, amount, money_format)
-                        chart_row += 1
-                
-                # Crear gráfico de barras
-                chart = workbook.add_chart({'type': 'column'})
-                chart.add_series({
-                    'name': f'Semana {week_number}',
-                    'categories': [f'Semana {week_number}', 1, 0, row-1, 0],
-                    'values': [f'Semana {week_number}', 1, 2, row-1, 2],
+
+            # Gráfico de columnas (montos diarios)
+            column_chart = workbook.add_chart({'type': 'column'})
+            column_chart.add_series({
+                'name': ('Montos por día' if tr('monday') == 'Lunes' else 'Daily amounts'),
+                'categories': [chart_sheet.get_name(), 1, 0, chart_row - 1, 0],
+                'values': [chart_sheet.get_name(), 1, 1, chart_row - 1, 1],
+            })
+            column_chart.set_title({'name': ('Desempeño semanal' if tr('monday') == 'Lunes' else 'Weekly Performance')})
+            column_chart.set_x_axis({'name': ('Días' if tr('monday') == 'Lunes' else 'Days')})
+            column_chart.set_y_axis({'name': ('Monto ($)' if tr('monday') == 'Lunes' else 'Amount ($)')})
+            chart_sheet.insert_chart('E2', column_chart)
+
+            # Gráfico de línea (acumulado)
+            line_chart = workbook.add_chart({'type': 'line'})
+            line_chart.add_series({
+                'name': ('Acumulado' if tr('monday') == 'Lunes' else 'Cumulative'),
+                'categories': [chart_sheet.get_name(), 1, 0, chart_row - 1, 0],
+                'values': [chart_sheet.get_name(), 1, 2, chart_row - 1, 2],
+            })
+            line_chart.set_title({'name': ('Saldo acumulado' if tr('monday') == 'Lunes' else 'Cumulative balance')})
+            chart_sheet.insert_chart('E18', line_chart)
+
+            # Gráfico de torta (por destino)
+            if totals_by_destination:
+                pie_chart = workbook.add_chart({'type': 'pie'})
+                # Rango en hoja de resumen
+                start = dest_start_row + 1
+                end = dr - 1
+                pie_chart.add_series({
+                    'name': ('Distribución por destino' if tr('monday') == 'Lunes' else 'Distribution by destination'),
+                    'categories': [summary_sheet.get_name(), start, 0, end, 0],
+                    'values': [summary_sheet.get_name(), start, 1, end, 1],
                 })
-                
-                chart.set_title({'name': f'Rendimiento Semana {week_number}'})
-                chart.set_x_axis({'name': 'Días'})
-                chart.set_y_axis({'name': 'Monto ($)'})
-                
-                worksheet.insert_chart('H2', chart)
-            
+                pie_chart.set_title({'name': ('Destinos' if tr('monday') == 'Lunes' else 'Destinations')})
+                chart_sheet.insert_chart('E34', pie_chart)
+
             workbook.close()
             return True
-            
+        
         except Exception as e:
             self.export_error.emit(f"Error al exportar a Excel: {str(e)}")
             return False
@@ -346,7 +419,7 @@ class ExportManager(QObject):
             return True
             
         except Exception as e:
-            self.export_error.emit(f"Error al exportar a JSON: {str(e)}")
+            self.export_error.emit(f"{tr('export_error')}: {str(e)}")
             return False
     
     def show_export_dialog(self, data: Dict[str, Any], week_number: int) -> bool:
@@ -359,7 +432,7 @@ class ExportManager(QObject):
             return self.export_data(data, week_number, file_path)
             
         except Exception as e:
-            self.export_error.emit(f"Error en el diálogo de exportación: {str(e)}")
+            self.export_error.emit(f"{tr('export_error')}: {str(e)}")
             return False
 
 

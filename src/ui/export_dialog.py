@@ -146,12 +146,12 @@ class ExportDialog(QDialog):
         
         # Selector de formato
         format_selector_layout = QHBoxLayout()
-        format_label = QLabel("Formato:")
+        format_label = QLabel(tr("format_label"))
         self.format_combo = QComboBox()
         self.format_combo.addItems([
-            "Excel (.xlsx) - Recomendado",
-            "CSV (.csv) - Compatible con todos",
-            "JSON (.json) - Para desarrolladores"
+            tr("format_excel_recommended"),
+            tr("format_csv_compatible"),
+            tr("format_json_developers")
         ])
         format_selector_layout.addWidget(format_label)
         format_selector_layout.addWidget(self.format_combo)
@@ -159,11 +159,11 @@ class ExportDialog(QDialog):
         format_layout.addLayout(format_selector_layout)
         
         # Opciones adicionales
-        self.include_charts_check = QCheckBox("Incluir gráficos en Excel (si es posible)")
+        self.include_charts_check = QCheckBox(tr("include_charts_excel"))
         self.include_charts_check.setChecked(True)
         format_layout.addWidget(self.include_charts_check)
         
-        self.include_summary_check = QCheckBox("Incluir resumen detallado")
+        self.include_summary_check = QCheckBox(tr("include_detailed_summary"))
         self.include_summary_check.setChecked(True)
         format_layout.addWidget(self.include_summary_check)
         
@@ -171,7 +171,7 @@ class ExportDialog(QDialog):
         main_layout.addWidget(format_group)
         
         # Vista previa de datos
-        preview_group = QGroupBox("👁️ Vista Previa")
+        preview_group = QGroupBox(tr("preview_title"))
         preview_group.setStyleSheet("""
             QGroupBox {
                 font-weight: bold;
@@ -232,7 +232,7 @@ class ExportDialog(QDialog):
         button_layout = QHBoxLayout()
         button_layout.addStretch()
         
-        self.select_file_btn = QPushButton("📁 " + tr("export_dialog_title"))
+        self.select_file_btn = QPushButton("📁 " + tr("select_file"))
         self.select_file_btn.setStyleSheet("""
             QPushButton {
                 background-color: #3498DB;

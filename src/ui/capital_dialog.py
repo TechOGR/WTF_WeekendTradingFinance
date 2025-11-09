@@ -56,7 +56,7 @@ class CapitalDialog(QDialog):
         
         self.capital_input = QLineEdit()
         self.capital_input.setText(str(self.current_capital))
-        self.capital_input.setPlaceholderText("Ej: 100.00")
+        self.capital_input.setPlaceholderText(tr("capital_placeholder"))
         
         # Validador para números decimales positivos
         validator = QDoubleValidator(0.01, 999999.99, 2)
