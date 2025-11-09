@@ -82,10 +82,10 @@
 ### ⚡ Método 1: Instalación Express (Recomendado)
 ```bash
 # Clonar el repositorio
-git clone https://github.com/TechOGR/W-T-F---Weekend-Trading-Finance--.git
+git clone https://github.com/TechOGR/WTF_WeekendTradingFinance.git
 
 # Entrar al directorio
-cd W-T-F---Weekend-Trading-Finance--
+cd WTF_WeekendTradingFinance
 
 # Instalar dependencias automáticamente
 pip install -r requirements.txt
