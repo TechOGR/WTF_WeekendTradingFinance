@@ -316,7 +316,7 @@ Gracias a todos los que han contribuido a hacer este proyecto mejor:
 
 ### 🌟 **¿Te ha sido útil este proyecto?**
 
-[![GitHub Stars](https://img.shields.io/github/stars/tu-usuario/W-T-F-Trading-Manager?style=social)](https://github.com/tu-usuario/W-T-F-Trading-Manager)
+[![GitHub Stars](https://img.shields.io/github/stars/TechOGR/W-T-F-Trading-Manager?style=social)](https://github.com/TechOGR/W-T-F-Trading-Manager)
 
 **¡Dale una estrella ⭐ si te ha gustado!**
 
