@@ -440,12 +440,36 @@ class MainMenuBar(QMenuBar):
         main_layout.setContentsMargins(20, 20, 20, 20)
         main_layout.setSpacing(12)
 
-        # Contenido principal
+        # Contenido principal con icono (restaurar logo en esquina superior izquierda)
+        # Resolver ruta de imagen base similar a "Instrucciones"
+        base_dir = os.path.dirname(sys.executable) if getattr(sys, 'frozen', False) else os.path.abspath(os.getcwd())
+        images_dir = os.path.join(base_dir, 'src', 'images')
+        logo_png = os.path.join(images_dir, 'logo.png')
+
+        header_layout = QHBoxLayout()
+        header_layout.setSpacing(10)
+
+        # Icono del diálogo si existe
+        try:
+            if os.path.exists(logo_png):
+                dialog.setWindowIcon(QIcon(logo_png))
+                pixmap = QPixmap(logo_png).scaled(64, 64, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+                icon_label = QLabel()
+                icon_label.setPixmap(pixmap)
+                icon_label.setAlignment(Qt.AlignCenter)
+                header_layout.addWidget(icon_label, alignment=Qt.AlignCenter)
+        except Exception as e:
+            print(f"Error al asignar icono al diálogo Acerca de: {e}")
+
         content_label = QLabel(content)
         content_label.setTextFormat(Qt.RichText)
         content_label.setWordWrap(True)
         content_label.setOpenExternalLinks(True)
-        main_layout.addWidget(content_label)
+        header_layout.addWidget(content_label)
+        # Alinear ambos elementos al centro vertical para evitar desalineación en distintos modos
+        header_layout.setAlignment(icon_label, Qt.AlignTop)
+        header_layout.setAlignment(content_label, Qt.AlignTop)
+        main_layout.addLayout(header_layout)
 
         # Etiqueta de redes sociales
         social_label = QLabel(f"<strong>{social_label_text}</strong>")
