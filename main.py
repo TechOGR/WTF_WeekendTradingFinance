@@ -112,6 +112,26 @@ class MainWindow(QMainWindow):
         
         # Cargar datos iniciales
         self.load_initial_data()
+        # Actualizar título con la semana actual tras cargar datos
+        try:
+            self.update_window_title_with_week()
+        except Exception:
+            pass
+
+    def update_window_title_with_week(self):
+        """Actualizar el título de la ventana para mostrar la semana actual."""
+        try:
+            from datetime import datetime, timedelta
+            base_title = tr("app_title")
+            week_date = getattr(self.data_model, 'week_start_date', None)
+            if not week_date:
+                today = datetime.now().date()
+                week_date = today - timedelta(days=today.weekday())
+            # Formato: App Title — Semana YYYY-MM-DD
+            self.setWindowTitle(f"{base_title} — {tr('week')} {week_date.isoformat()}")
+        except Exception:
+            # Fallback al título base si algo falla
+            self.setWindowTitle(tr("app_title"))
     
     def setup_connections(self):
         """Configurar conexiones entre componentes"""
@@ -380,6 +400,11 @@ class MainWindow(QMainWindow):
                 f"✅ {tr('week')} {next_monday_date.isoformat()} | {tr('capital_initial')} ${new_initial:.2f}",
                 5000
             )
+            # Actualizar título con nueva semana
+            try:
+                self.update_window_title_with_week()
+            except Exception:
+                pass
         except Exception as e:
             print(f"Error en rollover del sábado: {e}")
 
@@ -433,13 +458,21 @@ class MainWindow(QMainWindow):
                 f"🆕 {tr('week')} {next_monday_date.isoformat()} | {tr('capital_initial')} ${new_initial:.2f}",
                 5000
             )
+            # Actualizar título con nueva semana
+            try:
+                self.update_window_title_with_week()
+            except Exception:
+                pass
         except Exception as e:
             QMessageBox.warning(self, tr("warning"), f"{tr('operation_failed')}: {e}")
     
     def on_language_changed(self, lang: str):
         """Actualizar textos y re-traducir widgets principales."""
-        # Actualizar título de la ventana
-        self.setWindowTitle(tr("app_title"))
+        # Actualizar título de la ventana con semana
+        try:
+            self.update_window_title_with_week()
+        except Exception:
+            self.setWindowTitle(tr("app_title"))
         # Retraducir tabla de trading
         if hasattr(self.table_widget, 'apply_language'):
             self.table_widget.apply_language()
@@ -510,6 +543,11 @@ class MainWindow(QMainWindow):
                     self.update_chart()
                     self.update_summary()
                     self.update_save_status("✅ " + tr("load_success"))
+                    # Actualizar título con semana cargada
+                    try:
+                        self.update_window_title_with_week()
+                    except Exception:
+                        pass
                 else:
                     self.update_save_status("❌ " + tr("load_error"))
         except Exception as e:
@@ -552,6 +590,11 @@ class MainWindow(QMainWindow):
                 self.table_widget.load_data()
                 self.update_chart()
                 self.update_summary()
+                # Actualizar título con semana cargada
+                try:
+                    self.update_window_title_with_week()
+                except Exception:
+                    pass
                 self.update_save_status(f"✅ {tr('week')} {week_date} {tr('load_success')}")
             else:
                 QMessageBox.warning(self, tr("warning"), f"{tr('load_error')} {week_date}")
@@ -575,12 +618,21 @@ class MainWindow(QMainWindow):
                 self.data_model.save_current_week()
                 self.update_summary()
                 self.status_bar.showMessage(f"✅ {tr('capital_initial')} ${new_capital:.2f}", 3000)
+                # Actualizar título (semana actual por defecto)
+                try:
+                    self.update_window_title_with_week()
+                except Exception:
+                    pass
             else:
                 # Si cancela, usar valor por defecto
                 self.data_model.initial_capital = 100.0
                 self.data_model.save_current_week()
                 self.update_summary()
                 self.status_bar.showMessage(f"ℹ️ {tr('capital_initial')} $100.00", 3000)
+                try:
+                    self.update_window_title_with_week()
+                except Exception:
+                    pass
                 
         except Exception as e:
             # En caso de error, usar valor por defecto
