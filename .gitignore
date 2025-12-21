@@ -447,6 +447,11 @@ testing/
 !src/
 !main.py
 
+#buildScript
+buildInstaller.py
+
+#folderInstallerSetup
+InstallerSetup
 # =============================================================================
 # 📝 NOTAS PARA EL DESARROLLADOR
 # =============================================================================
