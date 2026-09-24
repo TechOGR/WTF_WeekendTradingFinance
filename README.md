@@ -1,19 +1,22 @@
-# 🚀 W-T-F (Weekend Trading Finance) Trading Manager v2.0
+# 🚀 W-T-F (Weekend Trading Finance) Trading Manager v3.1
 
-## 📊 Tu Asistente Personal de Trading Semanal con Inteligencia Artificial ( xd solo da consejos )
+## 📊 Tu asistente personal de trading semanal ( xd solo da consejos )
 
 <div align="center">
 
-[![Python](https://img.shields.io/badge/Python-3.7+-blue.svg)](https://www.python.org/)
+[![Python](https://img.shields.io/badge/Python-3.10+-blue.svg)](https://www.python.org/)
 [![PyQt5](https://img.shields.io/badge/PyQt5-5.15+-green.svg)](https://www.riverbankcomputing.com/software/pyqt/)
+[![Version](https://img.shields.io/badge/Versión-3.1.0-7c5cff.svg)]()
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Status](https://img.shields.io/badge/Status-Active%20Development-brightgreen.svg)]()
 
 ### 🎯 Gestiona tu rendimiento de trading como un profesional
 
-<img src="https://img.shields.io/badge/Modo%20Oscuro-✅%20Implementado-purple.svg" alt="Dark Mode">
-<img src="https://img.shields.io/badge/Análisis%20AI-✅%20Integrado-orange.svg" alt="AI Analysis">
-<img src="https://img.shields.io/badge/Base%20de%20Datos-SQLite-blue.svg" alt="SQLite">
+<img src="https://img.shields.io/badge/Modo%20Oscuro-✅-purple.svg" alt="Dark Mode">
+<img src="https://img.shields.io/badge/Gráfico-2D%20%2F%203D-00d4ff.svg" alt="Charts">
+<img src="https://img.shields.io/badge/Imagen%20de%20resultado-IA%20%2B%20local-orange.svg" alt="Result image">
+<img src="https://img.shields.io/badge/Exporta-Excel%20·%20CSV%20·%20JSON-0f9f6e.svg" alt="Export">
+<img src="https://img.shields.io/badge/Idiomas-ES%20·%20EN-blue.svg" alt="i18n">
 
 </div>
 
@@ -21,294 +24,243 @@
 
 ## 🌟 ¿Qué es W-T-F Trading Manager?
 
-**W-T-F Trading Manager** es una aplicación de escritorio profesional diseñada para traders que quieren llevar un control detallado de su rendimiento semanal. Con una interfaz moderna y análisis impulsado por inteligencia artificial, esta herramienta te ayudará si no eres aún rentable en el trading, a seguir un plan de trading semanal para mejorar tu rendimiento.
+**W-T-F Trading Manager** es una aplicación de escritorio para traders que quieren llevar un control detallado de su semana: resultado de cada día, par de divisas y duración de la sesión, balance, retiro recomendado y capital para la semana siguiente. Si todavía no eres rentable, te ayuda a seguir un plan semanal con disciplina.
 
-### 💡 La solución perfecta para:
-- 📈 Traders de fin de semana
-- 📊 Gestión de portafolios personales
-- 🎯 Análisis de rendimiento semanal
+### 💡 Pensada para
+- 📈 Traders que operan por sesiones (lunes a viernes)
+- 🎯 Seguir un plan de retiro (30%) y reinversión
+- 📊 Analizar tu rendimiento semana a semana
+- 📸 Compartir tus resultados con una imagen profesional
 - 🤖 Frases y consejos míos
-- 📱 Control desde tu escritorio
 
 ---
 
-## ✨ Características Destacadas
+## ✨ Novedades de la versión 3.1
 
-### 🎨 Interfaz de Usuario Premium
-- **🌓 Modo Oscuro/Claro**: Cambio dinámico con estilos elegantes
-- **📱 Diseño Responsivo**: Adaptable a diferentes tamaños de pantalla
-- **🎯 Interfaz Intuitiva**: Fácil de usar desde el primer momento
-- **⚡ Rendimiento Optimizado**: Fluido y rápido en todas las operaciones
-
-### 📊 Gestión de Datos Avanzada
-- **📅 Control Semanal**: Registro diario con destino inteligente
-- **💰 Retiros Personales**: Gestión de ganancias personales
-- **🔄 Reinversión Automática**: Optimización de capital
-- **💾 Auto-guardado**: Nunca pierdas tus datos
-
-### 🤖 Inteligencia Artificial Integrada
-- **📈 Análisis de Rendimiento**: Evaluación automática semanal
-- **💡 Recomendaciones Personalizadas**: Consejos basados en tus datos
-- **⚠️ Evaluación de Riesgos**: Alertas inteligentes
-- **🎯 Insights de Mercado**: Patrones y tendencias detectadas
-
-### 📊 Visualizaciones Profesionales
-- **📊 Gráficos Interactivos**: Barras dinámicas con colores inteligentes
-- **📈 Tendencias Claras**: Visualización de patrones semanales
-- **🎨 Colores Adaptativos**: Prioridad de pérdidas/ganancias sobre tipos de día
-- **📱 Responsive Charts**: Se adaptan al tema seleccionado
+- 👋 **Bienvenida en el primer arranque**: establece tu capital inicial con montos rápidos ($50 … $1,000).
+- 📊 **Resumen semanal Pro**: balance animado, tasa de acierto, mejor/peor día, promedio diario, desglose por día con barras y plan de retiro/reinversión. Botón para **copiar el resumen** y pegarlo en Telegram o WhatsApp.
+- 📤 **Exportación renovada**:
+  - Semana actual **o todo el historial** (hoja de historial + detalle con filtros + una hoja por semana).
+  - Excel con formato, **fórmulas vivas**, barras de datos y gráficos de resultados y evolución del balance.
+  - CSV compatible con **Excel en español** (`;` y coma decimal, acentos correctos).
+  - Vista previa real de los datos, destino recordado y botones para abrir el archivo o la carpeta.
+  - Corregido: el total y los gráficos de Excel omitían el viernes; el resumen del CSV salía en 0.
+- 📁 **Carpeta de semanas configurable** (Configuración → Datos): guarda y carga tus semanas desde donde quieras (p. ej. OneDrive o Google Drive), con opción de copiar las existentes. En "Cargar semana" puedes abrir **otra carpeta** solo esa vez.
+- 🚩 **Banderas en la imagen de resultado**: al cambiar de par, la IA también cambia las banderas de la tarjeta.
+- 💱 **Nueva lista de pares**: NZD/CAD, USD/EGP, USD/BDT, EUR/CAD, USD/INR, GBP/AUD, EUR/GBP.
+- 📖 **Ayuda y Acerca de rediseñados**, con accesos directos a mis redes sociales.
 
 ---
 
-## 🚀 Demo Visual
+## ✨ Características
 
-<div align="center">
+### 🎨 Interfaz
+- 🌓 **Modo oscuro/claro** estilo fintech, aplicado a toda la app (también a los diálogos).
+- 🎞️ **Animaciones suaves**: contadores animados, apariciones con desvanecido e interruptores tipo iOS.
+- 🌐 **Español e inglés**, cambiables al instante.
+- ⚙️ **Configuración central** (Ctrl+,): apariencia, trading, datos, IA e información de ayuda.
 
-### 🌓 Modo Oscuro Elegante
-![Dark Mode Preview](https://via.placeholder.com/800x400/1e1e1e/e0e0e0?text=Modo+Oscuro+Premium)
+### 📅 Registro semanal
+- 📝 **Doble clic en el monto** para anotar la ganancia/pérdida del día.
+- 💱 **Doble clic en Sesión** para anotar el par y la duración (se muestran en el gráfico).
+- 💰 **Modo edición por capital**: escribe el capital inicial y final del día y la app calcula el resultado.
+- 🗓️ **Nueva semana automática** los sábados, con el capital actualizado tras el retiro recomendado.
+- 💾 **Auto-guardado** en SQLite y copia en JSON en tu carpeta de semanas.
 
-### ☀️ Modo Claro Profesional
-![Light Mode Preview](https://via.placeholder.com/800x400/f8f9fa/2c3e50?text=Modo+Claro+Profesional)
+### 📊 Análisis
+- 📈 **Gráfico 2D o 3D** (arrástralo para rotarlo en 3D).
+- 🧮 **Panel de resumen**: balance, resultado, rendimiento, retiro y reinversión.
+- 💡 **Consejo del día** y **análisis** automático de tu semana.
+- 📊 **Resumen semanal Pro** con KPIs y plan para la próxima semana.
 
-### 📊 Panel de Análisis AI
-![AI Analysis](https://via.placeholder.com/800x400/ffffff/3498db?text=Análisis+AI+Inteligente)
-
-</div>
+### ✨ Imagen de resultado (Ctrl+G)
+- 🤖 **Motor IA (Pollinations)**: edita tu tarjeta de referencia cambiando solo los valores (par, banderas, duración, día y ganancia) o genera una desde cero.
+- 🎯 **Motor local (Pillow)**: dibuja la tarjeta sin conexión con los valores **exactos**.
+- 🖼️ Imagen de referencia, modelo, prompt y carpeta de salida configurables.
 
 ---
 
-## 📦 Instalación Rápida
+## 📦 Instalación
 
-### ⚡ Método 1: Instalación Express (Recomendado)
+### 🪟 Opción 1: Instalador para Windows (recomendado)
+1. Descarga `WTF-Setup-3.1.0.exe`.
+2. Ejecútalo: se instala **solo para tu usuario** (sin permisos de administrador) y se registra en *Configuración → Aplicaciones*.
+3. Si ya tenías una versión anterior, el instalador la **actualiza conservando tus datos** (base de datos, semanas, imágenes, exportaciones y API key), con copia de seguridad en `Documentos\W-T-F Backups`.
+
+### 🐍 Opción 2: Desde el código
 ```bash
 # Clonar el repositorio
-git clone https://github.com/TechOGR/WTF_WeekendTradingFinance.git
+git clone https://github.com/TechOGR/W-T-F---Weekend-Trading-Finance--.git
+cd W-T-F---Weekend-Trading-Finance--
 
-# Entrar al directorio
-cd WTF_WeekendTradingFinance
-
-# Instalar dependencias automáticamente
+# Instalar dependencias
 pip install -r requirements.txt
 
 # ¡Ejecutar!
 python main.py
 ```
 
-### 🔧 Método 2: Instalación Manual
-```bash
-# Instalar dependencias individuales
-pip install PyQt5==5.15.9
-pip install matplotlib==3.7.1
-pip install pandas==2.0.3
-pip install numpy==1.24.3
-
-# Ejecutar
-python main.py
+### 🔑 API key de Pollinations (opcional, solo para el motor IA)
+Crea un archivo `.env` junto a `main.py` (o pégala en *Configuración → IA · Imagen de resultado*):
+```env
+POLLINATIONS_API_KEY=tu_clave
 ```
+Consigue tu clave en [enter.pollinations.ai/keys](https://enter.pollinations.ai/keys). El archivo `.env` está en `.gitignore`: tu clave nunca se sube al repositorio. El motor local no necesita clave ni conexión.
+
+### 🏗️ Compilar el instalador
+```bash
+pip install pyinstaller pillow
+python buildInstaller.py            # build completo
+python buildInstaller.py --skip-app # reutiliza el ejecutable de la app ya compilado
+```
+Resultado: `InstallerSetup/dist/WTF-Setup-<versión>.exe`. La versión sale de `src/version.py`, la fuente única para la app, el build y el instalador.
 
 ---
 
-## 🎯 Guía de Uso Rápida
+## 🎯 Guía rápida
 
-### 📅 Primeros Pasos
-1. **🚀 Inicia la aplicación**: `python main.py`
-2. **💰 Establece tu capital inicial**: `Archivo → Establecer Capital Inicial`
-3. **📝 Registra tus operaciones diarias**: Haz clic en cualquier celda
-4. **🎯 Selecciona el destino**: Retiro Personal o Reinversión
+1. 🚀 **Abre la app**: la primera vez te pedirá el **capital inicial** de la semana.
+2. 📝 **Registra cada día**: doble clic en el monto y en la sesión (par · duración).
+3. 📊 **Revisa tu progreso** en el gráfico y el panel de resumen.
+4. ✨ **Genera la imagen del día** con Ctrl+G (o clic derecho sobre una fila).
+5. 📋 **Consulta el resumen semanal** y exporta tus resultados con Ctrl+E.
 
-### 📊 Análisis en Tiempo Real
-- **📈 Gráfico dinámico**: Se actualiza automáticamente
-- **📊 Estadísticas claras**: Panel derecho con métricas clave
-- **🤖 Consejo del día**: Recomendaciones diarias personalizadas
-- **📋 Resumen semanal**: Análisis completo cada semana
+### ⌨️ Atajos de teclado
 
-### 📤 Exportación Profesional
-- **📊 Excel (.xlsx)**: Con gráficos y formato profesional
-- **📋 CSV**: Datos sin procesar para análisis externo
-- **📄 JSON**: Formato estructurado para integraciones
-- **🎨 Estilos adaptativos**: Se ajustan al tema actual
+| Atajo | Acción |
+|-------|--------|
+| `Ctrl+S` | Guardar semana |
+| `Ctrl+O` | Cargar semana |
+| `Ctrl+G` | Imagen de resultado |
+| `Ctrl+E` | Exportar (último formato usado) |
+| `Ctrl+,` | Configuración |
+| `Ctrl+D` | Modo oscuro / claro |
 
-### 🎨 Personalización
-- **🌓 Cambiar tema**: `Vista → Modo Oscuro` (Ctrl+T)
-- **💾 Guardar datos**: `Archivo → Guardar Semana` (Ctrl+S)
-- **📂 Cargar semana**: `Archivo → Cargar Semana` (Ctrl+O)
-- **🔄 Actualizar BD**: `Archivo → Cargar desde Base de Datos`
+### 📂 Dónde se guardan tus datos
 
-### 📤 Exportación de Datos
-- **📊 Exportar Excel**: `Exportar → Excel` (Ctrl+E)
-- **📋 Exportar CSV**: `Exportar → CSV` (Ctrl+Shift+C)
-- **📄 Exportar JSON**: `Exportar → JSON` (Ctrl+Shift+J)
-- **📈 Incluye gráficos**: Los archivos Excel incluyen gráficos profesionales
+| Dato | Ubicación por defecto |
+|------|----------------------|
+| Base de datos | `trading_data.db` |
+| Semanas (JSON) | `Weekend-Saved/`, configurable en *Configuración → Datos* |
+| Exportaciones | `Exports/`, se recuerda la última carpeta usada |
+| Imágenes de resultado | `Result-Images/` |
+| API key | `.env` |
 
 ---
 
-## 🏗️ Arquitectura del Proyecto
+## 🏗️ Arquitectura del proyecto
 
 ```
 W-T-F ( Weekend Trading Finance )/
 │
-├── 📁 src/                             # Código fuente principal
-│   ├── 📁 models/                      # Modelos de datos y lógica
-│   │   ├── 🤖 ai_analyzer.py           # Motor de análisis AI
-│   │   ├── 📊 trading_model.py         # Modelo base de trading
-│   │   └── 💾 trading_model_with_db.py # Modelo con persistencia en SQLite
+├── 📁 src/
+│   ├── 🏷️ version.py                    # Versión única (app, build e instalador)
+│   ├── 📁 models/
+│   │   ├── 🤖 ai_analyzer.py            # Análisis automático de la semana
+│   │   ├── 📊 trading_model.py          # Modelo base
+│   │   └── 💾 trading_model_with_db.py  # Modelo con persistencia en SQLite
 │   │
-│   ├── 📁 ui/                          # Interfaz de usuario (PyQt5)
-│   │   ├── 💰 capital_dialog.py        # Diálogo para capital inicial/edición
-│   │   ├── 📈 chart_widget.py          # Widget de gráfico
-│   │   ├── 📅 day_capital_dialog.py    # Diálogo de edición por día
-│   │   ├── 🎨 enhanced_chart_widget.py # Gráficos interactivos mejorados
-│   │   ├── 📤 export_dialog.py         # Diálogo de exportación
-│   │   ├── 📂 load_week_dialog.py      # Diálogo para cargar semanas guardadas
-│   │   ├── 🧭 main_menu.py             # Barra de menú principal (modo claro/oscuro)
-│   │   ├── 📋 summary_panel.py         # Panel de resumen semanal
-│   │   └── 📊 trading_table.py         # Tabla editable de operaciones
+│   ├── 📁 ui/
+│   │   ├── 🎞️ animations.py             # Fade-in, brillos, contadores, interruptores
+│   │   ├── 💰 capital_dialog.py         # Capital inicial (bienvenida en el primer arranque)
+│   │   ├── 📅 day_capital_dialog.py     # Resultado del día a partir del capital
+│   │   ├── 📝 day_details_dialog.py     # Par de divisas y duración de la sesión
+│   │   ├── 📈 enhanced_chart_widget.py  # Gráfico 2D/3D
+│   │   ├── 📤 export_dialog.py          # Exportación Excel/CSV/JSON con vista previa
+│   │   ├── 📖 help_dialogs.py           # Instrucciones y Acerca de (redes sociales)
+│   │   ├── 📂 load_week_dialog.py       # Cargar semanas guardadas
+│   │   ├── 🧭 main_menu.py              # Menú principal
+│   │   ├── ✨ result_image_dialog.py    # Imagen de resultado (IA / local)
+│   │   ├── ⚙️ settings_dialog.py        # Configuración central
+│   │   ├── 📋 summary_panel.py          # Panel de resumen
+│   │   ├── 📊 trading_table.py          # Tabla semanal editable
+│   │   └── 📊 weekly_summary_dialog.py  # Resumen semanal Pro
 │   │
-│   ├── 📁 database/                    # Persistencia de datos
-│   │   └── 💾 database_manager.py      # Administrador de SQLite
+│   ├── 📁 services/
+│   │   ├── 🤖 pollinations_image.py     # API de Pollinations y prompts (incluye banderas)
+│   │   └── 🎯 card_renderer.py          # Tarjeta local con Pillow
 │   │
-│   ├── 📁 styles/                      # Temas y estilos
-│   │   └── 🎨 themes.py                # Gestor de temas (claro/oscuro)
+│   ├── 📁 database/
+│   │   └── 💾 database_manager.py       # SQLite (semanas, detalles y configuración)
 │   │
-│   ├── 📁 images/                      # Recursos gráficos
-│   │   └── 🔗 socials/                 # Iconos de redes sociales (Acerca de)
+│   ├── 📁 styles/
+│   │   └── 🎨 themes.py                 # Temas claro/oscuro por tokens
 │   │
-│   └── 📁 utils/                       # Utilidades
-│       ├── 💡 advice.py                # Generador de consejos diarios
-│       ├── 📤 export_manager.py        # Sistema de exportación (Excel/CSV/JSON)
-│       └── 🌐 i18n.py                  # Internacionalización y textos
+│   ├── 📁 images/                       # Logo, redes sociales e imagen de referencia
+│   │
+│   └── 📁 utils/
+│       ├── 💡 advice.py                 # Consejos diarios y resumen semanal
+│       ├── 📤 export_manager.py         # Motor de exportación
+│       ├── 🌐 i18n.py                   # Traducciones ES / EN
+│       ├── 🖼️ resources.py              # Localización de imágenes
+│       └── ⚙️ settings_store.py         # Configuración persistente, pares y banderas
 │
-├── 📁 scripts/                         # Scripts auxiliares
-├── 📁 Weekend-Saved/                   # Semanas guardadas
-├── 🚀 main.py                          # Punto de entrada principal
-├── 📋 requirements.txt                 # Dependencias del proyecto
-├── 🧹 .gitignore                        # Reglas de exclusión Git
-└── 📖 README.md                        # Documentación
+├── 🚀 main.py                           # Punto de entrada
+├── 📋 requirements.txt                  # Dependencias
+└── 📖 README.md                         # Documentación
 ```
 
 ---
 
-## 🔧 Tecnologías Utilizadas
+## 🔧 Tecnologías
 
 <div align="center">
 
-| Tecnología | Versión | Propósito |
-|------------|---------|-----------|
-| ![Python](https://img.shields.io/badge/Python-3.7%2B-blue) | 3.7+ | Lenguaje principal |
-| ![PyQt5](https://img.shields.io/badge/PyQt5-5.15.9-green) | 5.15.9 | Interfaz gráfica |
-| ![Matplotlib](https://img.shields.io/badge/Matplotlib-3.7.1-orange) | 3.7.1 | Visualizaciones |
-| ![Pandas](https://img.shields.io/badge/Pandas-2.0.3-red) | 2.0.3 | Procesamiento de datos |
-| ![NumPy](https://img.shields.io/badge/NumPy-1.24.3-yellow) | 1.24.3 | Cálculos numéricos |
-| ![SQLite](https://img.shields.io/badge/SQLite-Embedded-lightgrey) | Embedded | Base de datos local |
-| ![OpenPyXL](https://img.shields.io/badge/OpenPyXL-3.1.2-green) | 3.1.2 | Exportación Excel |
-| ![XlsxWriter](https://img.shields.io/badge/XlsxWriter-3.1.9-blue) | 3.1.9 | Formato Excel avanzado |
+| Tecnología | Propósito |
+|------------|-----------|
+| ![Python](https://img.shields.io/badge/Python-3.10%2B-blue) | Lenguaje principal |
+| ![PyQt5](https://img.shields.io/badge/PyQt5-5.15-green) | Interfaz gráfica |
+| ![Matplotlib](https://img.shields.io/badge/Matplotlib-3.x-orange) | Gráficos 2D/3D |
+| ![SQLite](https://img.shields.io/badge/SQLite-Embedded-lightgrey) | Base de datos local |
+| ![XlsxWriter](https://img.shields.io/badge/XlsxWriter-3.x-blue) | Exportación a Excel con gráficos |
+| ![Pillow](https://img.shields.io/badge/Pillow-9%2B-yellow) | Tarjeta de resultado local |
+| ![Pollinations](https://img.shields.io/badge/Pollinations-API-7c5cff) | Imagen de resultado con IA |
+| ![PyInstaller](https://img.shields.io/badge/PyInstaller-6.x-informational) | Ejecutable e instalador |
 
 </div>
 
 ---
 
-## 🌟 Características Avanzadas
+## 🛡️ Privacidad
 
-### 🎨 Sistema de Temas Inteligente
-- **🔄 Cambio dinámico**: Sin reiniciar la aplicación
-- **🎯 Colores adaptativos**: Se ajustan al contenido
-- **♿ Accesibilidad**: Alto contraste para mejor legibilidad
-- **🌈 Paletas coherentes**: Todos los componentes se actualizan
-
-### 📊 Lógica de Colores Inteligente
-- **🔴 Rojo**: Pérdidas (prioridad máxima)
-- **🟢 Verde**: Ganancias normales
-- **🟡 Amarillo**: Retiros personales con ganancias
-- **⚪ Gris**: Días no operativos
-- **🎯 Prioridad**: Pérdidas siempre visibles en rojo
-
-### 🤖 Motor de Análisis AI
-- **📈 Patrones de trading**: Detecta tendencias automáticamente
-- **💡 Recomendaciones personalizadas**: Basadas en tu historial
-- **⚠️ Alertas de riesgo**: Prevención de pérdidas
-- **🎯 Metas semanales**: Sugerencias realistas
+- 🔒 **Datos locales**: tus semanas y tu base de datos se quedan en tu computadora.
+- 🌐 **Única conexión opcional**: el motor IA envía a Pollinations la imagen de referencia y los valores de la tarjeta. El motor local funciona 100% offline.
+- 🔑 **API key fuera del código**: vive en `.env`, que no se sube al repositorio.
+- 💾 **Copias de seguridad** automáticas al actualizar o desinstalar.
 
 ---
 
-## 🛡️ Seguridad y Confianza
+## 🚀 Roadmap
 
-- **🔒 Datos locales**: Tu información nunca sale de tu computadora
-- **💾 Auto-respaldado**: Múltiples capas de protección
-- **🔧 Código abierto**: Transparencia total
-- **📊 Sin conexión externa**: Funciona 100% offline
-
----
-
-## 🚀 Próximas Características (Roadmap 2026)
-
-### 🔮 Versión 2.3 - En Planificación
-- [ ] 🏦 **Múltiples cuentas**: Gestiona varios portafolios
-- [ ] 🔔 **Notificaciones inteligentes**: Alertas personalizadas
-- [ ] 🌐 **Modo web**: Acceso desde cualquier dispositivo
-- [ ] 📱 **App móvil**: Sincronización con escritorio
-- [ ] 🌍 **Multi-idioma**: Soporte para más idiomas
+- [ ] 🏦 **Múltiples cuentas**: gestiona varios portafolios
+- [ ] 🔔 **Notificaciones**: recordatorios de sesión y cierre de semana
+- [ ] 📱 **App móvil**: sincronización con el escritorio
+- [ ] 🌍 **Más idiomas**
 
 ---
 
-## 🤝 Contribuir al Proyecto
+## 🤝 Contribuir
 
-¡Tu ayuda hace la diferencia! 🌟
+1. **🍴 Haz fork** del proyecto
+2. **🌿 Crea una rama** (`git checkout -b feature/AmazingFeature`)
+3. **💾 Haz commit** (`git commit -m 'Add some AmazingFeature'`)
+4. **🚀 Haz push** (`git push origin feature/AmazingFeature`)
+5. **📋 Abre un Pull Request**
 
-### 🎯 Cómo Contribuir
-1. **🍴 Fork** el proyecto
-2. **🌿 Crea** una rama para tu feature (`git checkout -b feature/AmazingFeature`)
-3. **💾 Commit** tus cambios (`git commit -m 'Add some AmazingFeature'`)
-4. **🚀 Push** a la rama (`git push origin feature/AmazingFeature`)
-5. **📋 Abre** un Pull Request
-
-### 🏷️ Tipos de Contribuciones Bienvenidas
-- 🐛 **Reportar bugs**: Ayúdame a mejorar
-- 💡 **Sugerir features**: Tu idea puede ser la próxima gran función
-- 🎨 **Mejorar UI/UX**: Házlo más hermoso y usable
-- 📖 **Documentación**: Mejora esta guía
-- 🌍 **Traducciones**: Llévalo a más personas
+Son bienvenidos los reportes de bugs, las ideas, las mejoras de UI/UX, la documentación y las traducciones.
 
 ---
 
-## 📞 Soporte y Comunidad
+## 📞 Soporte y comunidad
 
-### 💬 ¿Necesitas Ayuda?
-- 📖 **Lee este README**: La respuesta puede estar aquí
-- 📧 **Contacto directo**: **Redes Sociales**
-
-### 🌟 Apoya el Proyecto
-- ⭐ **Da una estrella**: Si te gusta el proyecto
-- 🍴 **Haz fork**: Para tu propio uso
-- 📤 **Comparte**: Con otros traders
+- 📖 **Ayuda dentro de la app**: *Configuración → Ayuda* o menú *Ayuda → Instrucciones*.
+- 💬 **Redes sociales**: [Telegram](https://t.me/onel_crack) · [YouTube](https://www.youtube.com/@OnelCrack) · [Instagram](https://www.instagram.com/onel_crack) · [Facebook](https://www.facebook.com/profile.php?id=61570586445561) · [GitHub](https://github.com/TechOGR)
 
 ---
 
 ## 📄 Licencia
 
-Este proyecto está licenciado bajo la Licencia MIT - ver el archivo [LICENSE](LICENSE) para más detalles.
-
-### 📋 Resumen de la Licencia
-- ✅ **Uso comercial**: Puedes usarlo para tu negocio
-- ✅ **Modificación**: Puedes personalizarlo a tu gusto
-- ✅ **Distribución**: Puedes compartirlo con otros
-- ✅ **Privacidad**: Tu información es tuya
-
----
-
-## 🙏 Agradecimientos
-
-### 💖 Contribuidores Especiales
-Gracias a todos los que han contribuido a hacer este proyecto mejor:
-
-- 🌟 **Tú**: Por usar y apoyar el proyecto
-- 🤝 **Comunidad**: Por los reportes y sugerencias
-- 📊 **Traders**: Por compartir sus necesidades
-
-### 🛠️ Tecnologías que Hacen Esto Posible
-- [PyQt5](https://www.riverbankcomputing.com/software/pyqt/) - Framework GUI
-- [Matplotlib](https://matplotlib.org/) - Visualizaciones
-- [Pandas](https://pandas.pydata.org/) - Análisis de datos
-- [Python](https://www.python.org/) - Lenguaje principal
+Este proyecto está bajo la Licencia MIT. Consulta el archivo [LICENSE](LICENSE) para más detalles.
 
 ---
 
@@ -316,18 +268,13 @@ Gracias a todos los que han contribuido a hacer este proyecto mejor:
 
 ### 🌟 **¿Te ha sido útil este proyecto?**
 
-[![GitHub Stars](https://img.shields.io/github/stars/TechOGR/W-T-F-Trading-Manager?style=social)](https://github.com/TechOGR/W-T-F-Trading-Manager)
+[![GitHub Stars](https://img.shields.io/github/stars/TechOGR/W-T-F---Weekend-Trading-Finance--?style=social)](https://github.com/TechOGR/W-T-F---Weekend-Trading-Finance--)
 
 **¡Dale una estrella ⭐ si te ha gustado!**
 
-### 🚀 **Comparte con otros traders**
-
-[![Twitter](https://img.shields.io/twitter/url?style=social&url=https%3A%2F%2Fgithub.com%2Ftu-usuario%2FW-T-F-Trading-Manager)](https://twitter.com/intent/tweet?text=Check%20out%20this%20amazing%20trading%20manager!&url=https://github.com/tu-usuario/W-T-F-Trading-Manager)
-[![LinkedIn](https://img.shields.io/badge/Share-LinkedIn-blue?style=flat-square&logo=linkedin)](https://www.linkedin.com/sharing/share-offsite/?url=https://github.com/tu-usuario/W-T-F-Trading-Manager)
-
 ---
 
-**Desarrollado con ❤️ por OnelCrack Trading**
+**Desarrollado con ❤️ por Onel Crack**
 
 *"Gestiona tu trading como un profesional, sin complicaciones"*
 

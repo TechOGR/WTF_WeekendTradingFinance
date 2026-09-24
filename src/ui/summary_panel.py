@@ -1,268 +1,201 @@
 """
-Panel de resumen para mostrar estadísticas y análisis AI
+Panel de resumen: tarjetas KPI animadas, consejo del día y análisis AI.
 """
 
-from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
-                            QFrame, QTextEdit, QGroupBox)
+from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QGridLayout, QLabel,
+                             QFrame, QTextEdit)
 from PyQt5.QtCore import Qt
-from PyQt5.QtGui import QFont, QPalette, QColor
+from src.styles.themes import ThemeManager
+from src.ui.animations import AnimatedNumberLabel, fade_in
 from src.utils.i18n import tr
+
+
+def _money(v):
+    return f"{'-' if v < 0 else ''}${abs(v):,.2f}"
+
+
+def _signed_money(v):
+    return f"{'+' if v >= 0 else '-'}${abs(v):,.2f}"
+
+
+def _percent(v):
+    return f"{v:+.2f}%"
+
+
+class _StatTile(QFrame):
+    """Mini tarjeta con título y valor animado."""
+
+    def __init__(self, title, fmt=_money):
+        super().__init__()
+        self.setObjectName('cardAlt')
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(14, 12, 14, 12)
+        layout.setSpacing(4)
+        self.title = QLabel(title.upper())
+        self.title.setObjectName('caption')
+        self.value = AnimatedNumberLabel(fmt)
+        self.value.setStyleSheet('font-size: 14pt; font-weight: 800;')
+        self.extra = QLabel('')
+        self.extra.setObjectName('muted')
+        self.extra.setStyleSheet('font-size: 8pt;')
+        layout.addWidget(self.title)
+        layout.addWidget(self.value)
+        layout.addWidget(self.extra)
+
+    def set_title(self, title):
+        self.title.setText(title.upper())
+
+    def set_color(self, color):
+        self.value.setStyleSheet(f'font-size: 14pt; font-weight: 800; color: {color};')
+
 
 class SummaryPanel(QWidget):
     """Panel de resumen mejorado para mostrar estadísticas y análisis"""
-    
+
     def __init__(self):
         super().__init__()
-        self.setup_ui()
-        # Mantener últimos datos para re-aplicar colores al cambiar tema
+        self.is_dark = True
         self.last_summary = {}
         self.last_capital = {}
-    
+        self.setup_ui()
+
     def setup_ui(self):
-        """Configurar la interfaz del panel"""
-        layout = QVBoxLayout()
-        
-        # Título principal
-        self.title_label = QLabel(tr("weekly_summary_panel"))
-        self.title_label.setObjectName("summary_title")
-        self.title_label.setAlignment(Qt.AlignCenter)
-        self.title_label.setStyleSheet("""
-            QLabel {
-                background-color: #3498db;
-                color: white;
-                padding: 10px;
-                border-radius: 5px;
-                margin-bottom: 10px;
-            }
-        """)
-        layout.addWidget(self.title_label)
-        
-        # Frame para estadísticas
-        self.stats_frame = QFrame()
-        self.stats_frame.setFrameStyle(QFrame.StyledPanel)
-        self.stats_frame.setStyleSheet("""
-            QFrame {
-                background-color: #f8f9fa;
-                border: 1px solid #dee2e6;
-                border-radius: 5px;
-                padding: 10px;
-            }
-        """)
-        
-        stats_layout = QVBoxLayout()
-        
-        # Capital inicial
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(4, 4, 4, 4)
+        layout.setSpacing(12)
+
+        # ---- Tarjeta principal: balance
+        self.hero = QFrame()
+        self.hero.setObjectName('heroCard')
+        hero_layout = QVBoxLayout(self.hero)
+        hero_layout.setContentsMargins(20, 18, 20, 18)
+        hero_layout.setSpacing(6)
+        self.title_label = QLabel(tr('weekly_summary_panel').upper())
+        self.title_label.setObjectName('caption')
+        self.balance_caption = QLabel(tr('current_balance').rstrip(':').upper())
+        self.balance_caption.setObjectName('caption')
+        self.current_balance_label = AnimatedNumberLabel(_money)
+        self.current_balance_label.setStyleSheet('font-size: 28pt; font-weight: 900;')
+
+        pl_row = QHBoxLayout()
+        pl_row.setSpacing(8)
+        self.profit_loss_label = AnimatedNumberLabel(_signed_money)
+        self.profit_loss_label.setStyleSheet('font-size: 13pt; font-weight: 800;')
+        self.pl_percent_label = QLabel('+0.00%')
+        self.pl_percent_label.setObjectName('chip')
+        pl_row.addWidget(self.profit_loss_label)
+        pl_row.addWidget(self.pl_percent_label)
+        pl_row.addStretch()
+
         self.initial_capital_label = QLabel(f"{tr('capital_initial')} $100.00")
-        self.initial_capital_label.setObjectName("initial_capital")
-        self.initial_capital_label.setStyleSheet("font-size: 12pt; font-weight: bold; color: #34495e;")
-        stats_layout.addWidget(self.initial_capital_label)
-        
-        # Balance actual
-        self.current_balance_label = QLabel(f"{tr('current_balance')} $100.00")
-        self.current_balance_label.setObjectName("current_balance")
-        self.current_balance_label.setStyleSheet("font-size: 14pt; font-weight: bold; color: #2c3e50;")
-        stats_layout.addWidget(self.current_balance_label)
-        
-        # Ganancia/Pérdida total
-        self.profit_loss_label = QLabel(f"{tr('total_profit_loss')} $0.00 (0.00%)")
-        self.profit_loss_label.setObjectName("profit_loss")
-        self.profit_loss_label.setStyleSheet("font-size: 13pt; font-weight: bold; color: #2c3e50;")
-        stats_layout.addWidget(self.profit_loss_label)
-        
-        # Layout para detalles
-        details_layout = QHBoxLayout()
-        
-        # Columna de retiros
-        self.withdrawal_group = QGroupBox(tr("personal_withdrawal"))
-        withdrawal_layout = QVBoxLayout()
-        self.withdrawal_label = QLabel("$0.00")
-        self.withdrawal_label.setObjectName("positive")
-        self.withdrawal_label.setStyleSheet("font-size: 12pt; font-weight: bold; color: #27ae60;")
-        withdrawal_layout.addWidget(self.withdrawal_label)
-        self.withdrawal_group.setLayout(withdrawal_layout)
-        details_layout.addWidget(self.withdrawal_group)
-        
-        # Columna de total semanal
-        self.total_group = QGroupBox(tr("total_week"))
-        total_layout = QVBoxLayout()
-        self.weekly_total_label = QLabel("$0.00")
-        self.weekly_total_label.setObjectName("weekly_total")
-        self.weekly_total_label.setStyleSheet("font-size: 12pt; font-weight: bold; color: #2c3e50;")
-        total_layout.addWidget(self.weekly_total_label)
-        self.total_group.setLayout(total_layout)
-        details_layout.addWidget(self.total_group)
-        
-        # Columna de reinversión
-        self.reinvestment_group = QGroupBox(tr("reinvestment"))
-        reinvestment_layout = QVBoxLayout()
-        self.reinvestment_label = QLabel("$0.00")
-        self.reinvestment_label.setObjectName("positive")
-        self.reinvestment_label.setStyleSheet("font-size: 12pt; font-weight: bold; color: #f39c12;")
-        reinvestment_layout.addWidget(self.reinvestment_label)
-        self.reinvestment_group.setLayout(reinvestment_layout)
-        details_layout.addWidget(self.reinvestment_group)
-        
-        # Columna de rendimiento
-        self.performance_group = QGroupBox(tr("performance"))
-        performance_layout = QVBoxLayout()
-        self.performance_label = QLabel("0.00%")
-        self.performance_label.setStyleSheet("font-size: 12pt; font-weight: bold; color: #3498db;")
-        performance_layout.addWidget(self.performance_label)
-        
-        # Días positivos/negativos
-        self.days_label = QLabel(tr("days_label").format(positive=0, negative=0))
-        self.days_label.setStyleSheet("font-size: 10pt; color: #7f8c8d;")
-        performance_layout.addWidget(self.days_label)
-        
-        self.performance_group.setLayout(performance_layout)
-        details_layout.addWidget(self.performance_group)
-        
-        stats_layout.addLayout(details_layout)
-        self.stats_frame.setLayout(stats_layout)
-        layout.addWidget(self.stats_frame)
-        
-        # Sección de consejo del día
-        self.advice_group = QGroupBox(tr("daily_advice_title"))
-        advice_layout = QVBoxLayout()
-        self.daily_advice_label = QLabel("")
+        self.initial_capital_label.setObjectName('muted')
+
+        hero_layout.addWidget(self.title_label)
+        hero_layout.addSpacing(4)
+        hero_layout.addWidget(self.balance_caption)
+        hero_layout.addWidget(self.current_balance_label)
+        hero_layout.addLayout(pl_row)
+        hero_layout.addWidget(self.initial_capital_label)
+        layout.addWidget(self.hero)
+
+        # ---- Rejilla de KPIs
+        grid = QGridLayout()
+        grid.setSpacing(10)
+        self.withdrawal_tile = _StatTile(tr('personal_withdrawal'))
+        self.reinvestment_tile = _StatTile(tr('reinvestment'))
+        self.total_tile = _StatTile(tr('total_week'), _signed_money)
+        self.performance_tile = _StatTile(tr('performance'), _percent)
+        grid.addWidget(self.withdrawal_tile, 0, 0)
+        grid.addWidget(self.reinvestment_tile, 0, 1)
+        grid.addWidget(self.total_tile, 1, 0)
+        grid.addWidget(self.performance_tile, 1, 1)
+        layout.addLayout(grid)
+        # Compatibilidad con código existente
+        self.withdrawal_group, self.reinvestment_group = self.withdrawal_tile, self.reinvestment_tile
+        self.total_group, self.performance_group = self.total_tile, self.performance_tile
+        self.days_label = self.performance_tile.extra
+        self.days_label.setText(tr('days_label').format(positive=0, negative=0))
+
+        # ---- Consejo del día
+        self.advice_group = QFrame()
+        self.advice_group.setObjectName('card')
+        advice_layout = QVBoxLayout(self.advice_group)
+        advice_layout.setContentsMargins(16, 14, 16, 14)
+        self.advice_title = QLabel('💡 ' + tr('daily_advice_title'))
+        self.advice_title.setObjectName('h3')
+        self.daily_advice_label = QLabel('')
         self.daily_advice_label.setWordWrap(True)
-        self.daily_advice_label.setStyleSheet("font-size: 10pt; color: #2c3e50;")
+        self.daily_advice_label.setObjectName('muted')
+        advice_layout.addWidget(self.advice_title)
         advice_layout.addWidget(self.daily_advice_label)
-        self.advice_group.setLayout(advice_layout)
         layout.addWidget(self.advice_group)
 
-        # Sección de análisis AI
-        self.ai_group = QGroupBox(tr("ai_analysis_title"))
-        ai_layout = QVBoxLayout()
-        
-        # Resumen del análisis
-        self.ai_summary_label = QLabel(tr("loading"))
+        # ---- Análisis AI
+        self.ai_group = QFrame()
+        self.ai_group.setObjectName('card')
+        ai_layout = QVBoxLayout(self.ai_group)
+        ai_layout.setContentsMargins(16, 14, 16, 14)
+        ai_layout.setSpacing(8)
+        self.ai_title = QLabel('🤖 ' + tr('ai_analysis_title'))
+        self.ai_title.setObjectName('h3')
+        self.ai_summary_label = QLabel(tr('loading'))
         self.ai_summary_label.setWordWrap(True)
-        self.ai_summary_label.setStyleSheet("""
-            QLabel {
-                background-color: #e8f4f8;
-                padding: 10px;
-                border-radius: 5px;
-                border: 1px solid #bee5eb;
-                font-weight: bold;
-                color: #0c5460;
-            }
-        """)
-        ai_layout.addWidget(self.ai_summary_label)
-        
-        # Detalles del análisis
         self.ai_details_text = QTextEdit()
         self.ai_details_text.setReadOnly(True)
-        self.ai_details_text.setMaximumHeight(150)
-        self.ai_details_text.setStyleSheet("""
-            QTextEdit {
-                background-color: #f8f9fa;
-                border: 1px solid #dee2e6;
-                border-radius: 5px;
-                padding: 8px;
-                font-family: 'Consolas', 'Monaco', monospace;
-                font-size: 9pt;
-            }
-        """)
+        self.ai_details_text.setMinimumHeight(140)
+        ai_layout.addWidget(self.ai_title)
+        ai_layout.addWidget(self.ai_summary_label)
         ai_layout.addWidget(self.ai_details_text)
-        
-        self.ai_group.setLayout(ai_layout)
         layout.addWidget(self.ai_group)
-        
-        # Panel de estado
-        self.status_label = QLabel(tr("operation_completed"))
+
+        # ---- Estado
+        self.status_label = QLabel(tr('operation_completed'))
+        self.status_label.setObjectName('status_label')
         self.status_label.setAlignment(Qt.AlignCenter)
-        self.status_label.setStyleSheet("""
-            QLabel {
-                background-color: #d4edda;
-                color: #155724;
-                padding: 5px;
-                border-radius: 3px;
-                border: 1px solid #c3e6cb;
-                font-size: 9pt;
-            }
-        """)
         layout.addWidget(self.status_label)
-        
-        # Añadir espaciador
         layout.addStretch()
-        
-        self.setLayout(layout)
-        self.is_dark = False
-    
+
+        self._apply_static_styles()
+        for i, w in enumerate((self.hero, self.withdrawal_tile, self.reinvestment_tile,
+                               self.total_tile, self.performance_tile, self.advice_group, self.ai_group)):
+            fade_in(w, duration=600, delay=120 + i * 70)
+
+    # ------------------------------------------------------------------
     def update_summary(self, summary_data: dict, ai_analysis: dict, capital_data: dict = None):
         """Actualizar el panel con nuevos datos"""
-        # Guardar últimos datos
         if summary_data is not None:
             self.last_summary = summary_data
         if capital_data is not None:
             self.last_capital = capital_data
-        # Actualizar información del capital
+
         if capital_data:
-            initial_capital = capital_data.get('initial_capital', 100.0)
-            current_balance = capital_data.get('current_balance', initial_capital)
-            total_profit_loss = capital_data.get('total_profit_loss', 0)
-            profit_loss_percentage = capital_data.get('profit_loss_percentage', 0)
-            
-            # Actualizar capital inicial
-            self.initial_capital_label.setText(f"{tr('capital_initial')} ${initial_capital:.2f}")
-            
-            # Actualizar balance actual
-            self.current_balance_label.setText(f"{tr('current_balance')} ${current_balance:.2f}")
-            
-            # Actualizar ganancia/pérdida total con color
-            profit_text = f"{tr('total_profit_loss')} ${total_profit_loss:.2f} ({profit_loss_percentage:.2f}%)"
-            self.profit_loss_label.setText(profit_text)
-            
-            # Color se ajusta dinámicamente según el signo
-            self._apply_dynamic_colors()
-        
-        # Actualizar valores principales (total semanal tradicional)
-        total = summary_data.get('total_weekly', 0)
-        
-        # Actualizar detalles
-        withdrawal = summary_data.get('total_withdrawal', 0)
-        reinvestment = summary_data.get('total_reinvestment', 0)
-        performance = summary_data.get('performance_percentage', 0)
-        positive_days = summary_data.get('positive_days', 0)
-        negative_days = summary_data.get('negative_days', 0)
-        
-        self.withdrawal_label.setText(f"${withdrawal:.2f}")
-        self.reinvestment_label.setText(f"${reinvestment:.2f}")
-        self.weekly_total_label.setText(f"${total:.2f}")
-        self.performance_label.setText(f"{performance:.2f}%")
-        
-        # Color del rendimiento
+            initial = capital_data.get('initial_capital', 100.0)
+            self.initial_capital_label.setText(f"{tr('capital_initial')} {_money(initial)}")
+            self.current_balance_label.set_value(capital_data.get('current_balance', initial))
+            self.profit_loss_label.set_value(capital_data.get('total_profit_loss', 0))
+            self.pl_percent_label.setText(_percent(capital_data.get('profit_loss_percentage', 0)))
+
+        summary_data = summary_data or {}
+        self.withdrawal_tile.value.set_value(summary_data.get('total_withdrawal', 0))
+        self.reinvestment_tile.value.set_value(summary_data.get('total_reinvestment', 0))
+        self.total_tile.value.set_value(summary_data.get('total_weekly', 0))
+        self.performance_tile.value.set_value(summary_data.get('performance_percentage', 0))
+        self.days_label.setText(tr('days_label').format(
+            positive=summary_data.get('positive_days', 0), negative=summary_data.get('negative_days', 0)))
         self._apply_dynamic_colors()
-        
-        self.days_label.setText(tr("days_label").format(positive=positive_days, negative=negative_days))
-        
-        # Actualizar análisis AI
+
         if ai_analysis:
             self.ai_summary_label.setText(ai_analysis.get('summary', tr('no_analysis')))
-            
-            # Construir texto detallado
-            details_text = ""
-            
+            details = ""
             if 'insights' in ai_analysis:
-                details_text += f"🔍 {tr('insights')}:\n"
-                for insight in ai_analysis['insights']:
-                    details_text += f"• {insight}\n"
-                details_text += "\n"
-            
+                details += f"🔍 {tr('insights')}:\n" + ''.join(f"• {i}\n" for i in ai_analysis['insights']) + "\n"
             if 'recommendations' in ai_analysis:
-                details_text += f"💡 {tr('recommendations')}:\n"
-                for rec in ai_analysis['recommendations']:
-                    details_text += f"• {rec}\n"
-                details_text += "\n"
-            
+                details += f"💡 {tr('recommendations')}:\n" + ''.join(f"• {r}\n" for r in ai_analysis['recommendations']) + "\n"
             if 'risk_assessment' in ai_analysis:
-                details_text += f"⚠️  {tr('risk_assessment')}:\n{ai_analysis['risk_assessment']}\n"
-            
+                details += f"⚠️  {tr('risk_assessment')}:\n{ai_analysis['risk_assessment']}\n"
             if 'performance_rating' in ai_analysis:
-                details_text += f"\n⭐ {tr('rating')}: {ai_analysis['performance_rating']}"
-            
-            self.ai_details_text.setPlainText(details_text)
+                details += f"\n⭐ {tr('rating')}: {ai_analysis['performance_rating']}"
+            self.ai_details_text.setPlainText(details)
 
     def update_daily_advice(self, advice: dict):
         """Actualizar el consejo del día en el panel."""
@@ -270,322 +203,69 @@ class SummaryPanel(QWidget):
             self.daily_advice_label.setText("")
             return
         title = advice.get('title', tr('daily_advice_title'))
-        message = advice.get('message', '')
-        replaced = message.replace("\n", "<br>")
-        html = f"<b>{title}</b><br><br>{replaced}"
-        self.daily_advice_label.setText(html)
+        message = advice.get('message', '').replace("\n", "<br>")
+        self.daily_advice_label.setText(f"<b>{title}</b><br><br>{message}")
 
     def apply_language(self):
         """Aplicar traducciones a títulos y etiquetas del panel"""
-        self.title_label.setText(tr("weekly_summary_panel"))
-        self.withdrawal_group.setTitle(tr("personal_withdrawal"))
-        self.total_group.setTitle(tr("total_week"))
-        self.reinvestment_group.setTitle(tr("reinvestment"))
-        self.performance_group.setTitle(tr("performance"))
-        self.advice_group.setTitle(tr("daily_advice_title"))
-        self.ai_group.setTitle(tr("ai_analysis_title"))
-        # Encabezados principales (se actualizan con datos)
-        # Mantener valores actuales pero traducir prefijos
-        try:
-            # Capital inicial
-            cap_text = self.initial_capital_label.text()
-            amount = cap_text.split(":")[-1].strip()
-            self.initial_capital_label.setText(f"{tr('capital_initial')} {amount}")
-        except Exception:
-            pass
-        try:
-            bal_text = self.current_balance_label.text()
-            amount = bal_text.split(":")[-1].strip()
-            self.current_balance_label.setText(f"{tr('current_balance')} {amount}")
-        except Exception:
-            pass
-        # Profit/loss re-rendered via update_summary; keep as-is
-        # Días label
-        try:
-            # Extract numbers from current days_label
-            import re
-            m = re.search(r"\+(\d+)\s*/\s*-(\d+)", self.days_label.text())
-            if m:
-                pos, neg = m.group(1), m.group(2)
-                self.days_label.setText(tr("days_label").format(positive=pos, negative=neg))
-        except Exception:
-            pass
-    
+        self.title_label.setText(tr('weekly_summary_panel').upper())
+        self.balance_caption.setText(tr('current_balance').rstrip(':').upper())
+        self.withdrawal_tile.set_title(tr('personal_withdrawal'))
+        self.reinvestment_tile.set_title(tr('reinvestment'))
+        self.total_tile.set_title(tr('total_week'))
+        self.performance_tile.set_title(tr('performance'))
+        self.advice_title.setText('💡 ' + tr('daily_advice_title'))
+        self.ai_title.setText('🤖 ' + tr('ai_analysis_title'))
+        if self.last_capital:
+            self.initial_capital_label.setText(
+                f"{tr('capital_initial')} {_money(self.last_capital.get('initial_capital', 100.0))}")
+        s = self.last_summary or {}
+        self.days_label.setText(tr('days_label').format(
+            positive=s.get('positive_days', 0), negative=s.get('negative_days', 0)))
+
     def update_status(self, status: str):
         """Actualizar el estado"""
         self.status_label.setText(status)
-        
-        # Cambiar color según el estado
-        if "Guardado" in status or "Listo" in status:
-            if self.is_dark:
-                self.status_label.setStyleSheet("""
-                    QLabel {
-                        background-color: #16331f;
-                        color: #8fce9b;
-                        padding: 5px;
-                        border-radius: 3px;
-                        border: 1px solid #1f4d2c;
-                        font-size: 9pt;
-                    }
-                """)
-            else:
-                self.status_label.setStyleSheet("""
-                    QLabel {
-                        background-color: #d4edda;
-                        color: #155724;
-                        padding: 5px;
-                        border-radius: 3px;
-                        border: 1px solid #c3e6cb;
-                        font-size: 9pt;
-                    }
-                """)
-        elif "Error" in status:
-            if self.is_dark:
-                self.status_label.setStyleSheet("""
-                    QLabel {
-                        background-color: #3a1f20;
-                        color: #f19999;
-                        padding: 5px;
-                        border-radius: 3px;
-                        border: 1px solid #5a2b2d;
-                        font-size: 9pt;
-                    }
-                """)
-            else:
-                self.status_label.setStyleSheet("""
-                    QLabel {
-                        background-color: #f8d7da;
-                        color: #721c24;
-                        padding: 5px;
-                        border-radius: 3px;
-                        border: 1px solid #f5c6cb;
-                        font-size: 9pt;
-                    }
-                """)
+        c = ThemeManager.colors(self.is_dark)
+        if "❌" in status or "Error" in status:
+            state = 'danger'
+        elif "✅" in status or "Guardado" in status or "Listo" in status or "Saved" in status:
+            state = 'success'
         else:
-            if self.is_dark:
-                self.status_label.setStyleSheet("""
-                    QLabel {
-                        background-color: #3a2f1f;
-                        color: #e2c97a;
-                        padding: 5px;
-                        border-radius: 3px;
-                        border: 1px solid #5a4a2b;
-                        font-size: 9pt;
-                    }
-                """)
-            else:
-                self.status_label.setStyleSheet("""
-                    QLabel {
-                        background-color: #fff3cd;
-                        color: #856404;
-                        padding: 5px;
-                        border-radius: 3px;
-                        border: 1px solid #ffeaa7;
-                        font-size: 9pt;
-                    }
-                """)
+            state = 'warning'
+        self.status_label.setStyleSheet(
+            f"background-color: {c[state + '_bg']}; color: {c[state]}; "
+            f"border: 1px solid {c[state + '_border']}; border-radius: 10px; padding: 8px; font-size: 9pt;")
 
     def set_theme(self, is_dark: bool):
-        """Aplicar estilos específicos del panel según el tema."""
+        """Aplicar colores dependientes del tema."""
         self.is_dark = is_dark
-        if is_dark:
-            # Encabezado
-            self.title_label.setStyleSheet(
-                """
-                QLabel {
-                    background-color: #1e1e1e;
-                    color: #e0e0e0;
-                    padding: 10px;
-                    border-radius: 5px;
-                    margin-bottom: 10px;
-                    border: 1px solid #2a2a2a;
-                }
-                """
-            )
-            # Marco y grupos
-            self.stats_frame.setStyleSheet(
-                """
-                QFrame {
-                    background-color: #1e1e1e;
-                    border: 1px solid #2a2a2a;
-                    border-radius: 5px;
-                    padding: 10px;
-                }
-                """
-            )
-            for group in [self.withdrawal_group, self.total_group, self.reinvestment_group, self.performance_group, self.advice_group, self.ai_group]:
-                group.setStyleSheet(
-                    """
-                    QGroupBox {
-                        color: #e0e0e0;
-                        border: 1px solid #2a2a2a;
-                        border-radius: 5px;
-                        margin-top: 6px;
-                    }
-                    QGroupBox::title {
-                        subcontrol-origin: margin;
-                        subcontrol-position: top left;
-                        padding: 0 3px;
-                        background-color: transparent;
-                    }
-                    """
-                )
-            # Etiquetas
-            self.initial_capital_label.setStyleSheet("font-size: 12pt; font-weight: bold; color: #e0e0e0;")
-            self.current_balance_label.setStyleSheet("font-size: 14pt; font-weight: bold; color: #e0e0e0;")
-            # profit_loss_label se ajusta en update_summary según signo
-            self.weekly_total_label.setStyleSheet("font-size: 12pt; font-weight: bold; color: #e0e0e0;")
-            self.withdrawal_label.setStyleSheet("font-size: 12pt; font-weight: bold; color: #f5d76e;")
-            self.reinvestment_label.setStyleSheet("font-size: 12pt; font-weight: bold; color: #e0e0e0;")
-            self.performance_label.setStyleSheet("font-size: 12pt; font-weight: bold; color: #e0e0e0;")
-            self.days_label.setStyleSheet("font-size: 10pt; color: #b0b0b0;")
-            self.daily_advice_label.setStyleSheet("font-size: 10pt; color: #e0e0e0;")
-            self.ai_summary_label.setStyleSheet(
-                """
-                QLabel {
-                    background-color: #1e1e1e;
-                    padding: 10px;
-                    border-radius: 5px;
-                    border: 1px solid #2a2a2a;
-                    font-weight: bold;
-                    color: #e0e0e0;
-                }
-                """
-            )
-            self.ai_details_text.setStyleSheet(
-                """
-                QTextEdit {
-                    background-color: #1e1e1e;
-                    border: 1px solid #2a2a2a;
-                    border-radius: 5px;
-                    padding: 8px;
-                    font-family: 'Consolas', 'Monaco', monospace;
-                    font-size: 9pt;
-                    color: #e0e0e0;
-                }
-                """
-            )
-        else:
-            # Volver a estilos claros originales
-            self.title_label.setStyleSheet(
-                """
-                QLabel {
-                    background-color: #3498db;
-                    color: white;
-                    padding: 10px;
-                    border-radius: 5px;
-                    margin-bottom: 10px;
-                }
-                """
-            )
-            self.stats_frame.setStyleSheet(
-                """
-                QFrame {
-                    background-color: #f8f9fa;
-                    border: 1px solid #dee2e6;
-                    border-radius: 5px;
-                    padding: 10px;
-                }
-                """
-            )
-            for group in [self.withdrawal_group, self.total_group, self.reinvestment_group, self.performance_group, self.advice_group, self.ai_group]:
-                group.setStyleSheet("")
-            self.initial_capital_label.setStyleSheet("font-size: 12pt; font-weight: bold; color: #34495e;")
-            self.current_balance_label.setStyleSheet("font-size: 14pt; font-weight: bold; color: #2c3e50;")
-            self.weekly_total_label.setStyleSheet("font-size: 12pt; font-weight: bold; color: #2c3e50;")
-            self.withdrawal_label.setStyleSheet("font-size: 12pt; font-weight: bold; color: #27ae60;")
-            self.reinvestment_label.setStyleSheet("font-size: 12pt; font-weight: bold; color: #f39c12;")
-            self.performance_label.setStyleSheet("font-size: 12pt; font-weight: bold; color: #3498db;")
-            self.days_label.setStyleSheet("font-size: 10pt; color: #7f8c8d;")
-            self.daily_advice_label.setStyleSheet("font-size: 10pt; color: #2c3e50;")
-            self.ai_summary_label.setStyleSheet(
-                """
-                QLabel {
-                    background-color: #e8f4f8;
-                    padding: 10px;
-                    border-radius: 5px;
-                    border: 1px solid #bee5eb;
-                    font-weight: bold;
-                    color: #0c5460;
-                }
-                """
-            )
-            self.ai_details_text.setStyleSheet(
-                """
-                QTextEdit {
-                    background-color: #f8f9fa;
-                    border: 1px solid #dee2e6;
-                    border-radius: 5px;
-                    padding: 8px;
-                    font-family: 'Consolas', 'Monaco', monospace;
-                    font-size: 9pt;
-                }
-                """
-            )
-        # Re-aplicar colores dinámicos (positivo/negativo) según valores actuales
-        try:
-            self._apply_dynamic_colors()
-        except Exception:
-            pass
+        self._apply_static_styles()
+        self._apply_dynamic_colors()
+
+    # ------------------------------------------------------------------
+    def _apply_static_styles(self):
+        c = ThemeManager.colors(self.is_dark)
+        self.ai_summary_label.setStyleSheet(
+            f"background-color: {c['accent_soft']}; color: {c['accent_hover']}; padding: 10px; "
+            f"border-radius: 10px; border: 1px solid {c['border_strong']}; font-weight: 600;")
+        self.ai_details_text.setStyleSheet("font-family: 'Cascadia Code', 'Consolas', monospace; font-size: 9pt;")
+        self.withdrawal_tile.set_color(c['success'])
+        self.reinvestment_tile.set_color(c['warning'])
+        self.status_label.setStyleSheet("")
 
     def _apply_dynamic_colors(self):
-        """Ajustar colores de labels dependientes de valores actuales y tema."""
-        # Determinar ganancia/pérdida total
-        total_profit_loss = None
-        if self.last_capital and 'total_profit_loss' in self.last_capital:
-            total_profit_loss = self.last_capital.get('total_profit_loss')
-        else:
-            # Intentar parsear del texto del label
-            import re
-            text = self.profit_loss_label.text()
-            m = re.search(r"[-+]?\$?([\d,.]+)", text)
-            if m:
-                try:
-                    num = m.group(1).replace(',', '')
-                    total_profit_loss = float(num)
-                except Exception:
-                    total_profit_loss = None
+        c = ThemeManager.colors(self.is_dark)
+        pl = self.last_capital.get('total_profit_loss', 0) if self.last_capital else 0
+        pl_color = c['success'] if pl >= 0 else c['danger']
+        self.profit_loss_label.setStyleSheet(f'font-size: 13pt; font-weight: 800; color: {pl_color};')
+        bg = c['success_bg'] if pl >= 0 else c['danger_bg']
+        border = c['success_border'] if pl >= 0 else c['danger_border']
+        self.pl_percent_label.setStyleSheet(
+            f"background-color: {bg}; color: {pl_color}; border: 1px solid {border}; "
+            f"border-radius: 11px; padding: 3px 10px; font-weight: 800; font-size: 9pt;")
 
-        # Determinar rendimiento (%)
-        performance = None
-        if self.last_summary and 'performance_percentage' in self.last_summary:
-            performance = self.last_summary.get('performance_percentage')
-        else:
-            import re
-            ptext = self.performance_label.text()
-            mp = re.search(r"([-+]?\d+(?:\.\d+)?)%", ptext)
-            if mp:
-                try:
-                    performance = float(mp.group(1))
-                except Exception:
-                    performance = None
-
-        # Colores según tema
-        positive_color = "#27ae60"  # verde
-        negative_color = "#e74c3c"  # rojo
-        neutral_text_color_dark = "#e0e0e0"
-        neutral_text_color_light = "#2c3e50"
-
-        # profit/loss
-        if total_profit_loss is not None:
-            if total_profit_loss >= 0:
-                self.profit_loss_label.setStyleSheet("font-size: 13pt; font-weight: bold; color: %s;" % positive_color)
-            else:
-                self.profit_loss_label.setStyleSheet("font-size: 13pt; font-weight: bold; color: %s;" % negative_color)
-        else:
-            # Neutral según tema
-            self.profit_loss_label.setStyleSheet(
-                "font-size: 13pt; font-weight: bold; color: %s;" % (neutral_text_color_dark if self.is_dark else neutral_text_color_light)
-            )
-
-        # performance
-        if performance is not None:
-            if performance >= 0:
-                self.performance_label.setStyleSheet("font-size: 12pt; font-weight: bold; color: %s;" % positive_color)
-            else:
-                self.performance_label.setStyleSheet("font-size: 12pt; font-weight: bold; color: %s;" % negative_color)
-        else:
-            self.performance_label.setStyleSheet(
-                "font-size: 12pt; font-weight: bold; color: %s;" % (neutral_text_color_dark if self.is_dark else neutral_text_color_light)
-            )
+        total = (self.last_summary or {}).get('total_weekly', 0)
+        self.total_tile.set_color(c['success'] if total >= 0 else c['danger'])
+        perf = (self.last_summary or {}).get('performance_percentage', 0)
+        self.performance_tile.set_color(c['success'] if perf >= 0 else c['danger'])

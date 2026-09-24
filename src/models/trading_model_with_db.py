@@ -34,6 +34,22 @@ class TradingDataModelWithDB(TradingDataModel):
         # Guardar automáticamente en la base de datos
         self.db_manager.save_weekly_data(self.to_dict())
         
+    def set_day_details(self, day: str, pair: str, duration: str):
+        """Guardar par de divisas y duración de la sesión de un día."""
+        if day in self.data:
+            self.data[day]['pair'] = (pair or '').strip()
+            self.data[day]['duration'] = (duration or '').strip()
+            self.db_manager.save_weekly_data(self.to_dict())
+
+    def get_day_details(self, day: str) -> Dict:
+        """Obtener par, duración y resultado de un día."""
+        info = self.data.get(day, {})
+        return {
+            'pair': info.get('pair', '') or '',
+            'duration': info.get('duration', '') or '',
+            'amount': float(info.get('amount', 0.0) or 0.0),
+        }
+
     def load_saved_data(self):
         """Cargar datos guardados desde la base de datos"""
         try:

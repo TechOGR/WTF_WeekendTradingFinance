@@ -7,21 +7,26 @@ import sys
 import os
 from PyQt5.QtWidgets import (QApplication, QMainWindow, QWidget, QHBoxLayout, 
                            QVBoxLayout, QSplitter, QStatusBar, QMessageBox, QFileDialog, 
-                           QDialog, QInputDialog)
-from PyQt5.QtCore import Qt, QTimer, pyqtSlot
-from PyQt5.QtGui import QPalette, QColor, QIcon
+                           QDialog, QInputDialog, QFrame, QLabel, QPushButton, QScrollArea,
+                           QShortcut)
+from PyQt5.QtCore import Qt, QTimer, pyqtSlot, QPropertyAnimation, QEasingCurve
+from PyQt5.QtGui import QPalette, QColor, QIcon, QPixmap, QKeySequence
 
 # Importar componentes modulares
-from src.ui.main_menu import MainMenuBar
+from src.ui.animations import fade_in, pulse_glow
+from src.ui.result_image_dialog import ResultImageDialog
+from src.ui.settings_dialog import SettingsDialog
+from src.utils.settings_store import SettingsStore
 from src.ui.trading_table import TradingTableWidget
 from src.ui.summary_panel import SummaryPanel
 from src.ui.enhanced_chart_widget import EnhancedChartWidget
 from src.ui.capital_dialog import CapitalDialog
+from src.ui.weekly_summary_dialog import WeeklySummaryDialog
 from src.ui.export_dialog import show_export_dialog
 from src.models.trading_model_with_db import TradingDataModelWithDB
 from src.models.ai_analyzer import AIAnalyzer
 from src.styles.themes import ThemeManager
-from src.utils.advice import get_daily_advice, get_weekly_summary_message
+from src.utils.advice import get_daily_advice
 from src.utils.i18n import tr, set_language
 from src.ui.load_week_dialog import LoadWeekDialog
 
@@ -40,76 +45,118 @@ class MainWindow(QMainWindow):
     def setup_ui(self):
         """Configurar la interfaz de usuario principal"""
         self.setWindowTitle(tr("app_title"))
-        self.setGeometry(100, 100, 1300, 950)
-        
+        self.setGeometry(80, 60, 1440, 960)
+
         # Establecer icono de la aplicación con ruta absoluta base + src/images
+        self.logo_path = None
         try:
             base_dir = os.path.dirname(sys.executable) if getattr(sys, 'frozen', False) else os.path.abspath(os.getcwd())
             images_dir = os.path.join(base_dir, 'src', 'images')
             logo_png = os.path.join(images_dir, 'logo.png')
             fallback_svg = os.path.join(images_dir, 'app_icon.svg')
             if os.path.exists(logo_png):
+                self.logo_path = logo_png
                 self.setWindowIcon(QIcon(logo_png))
             elif os.path.exists(fallback_svg):
                 self.setWindowIcon(QIcon(fallback_svg))
         except Exception as e:
             print(f"Error al cargar el icono de la ventana: {e}")
-        
-        # Crear modelo de datos
+
+        # Crear modelo de datos y configuración persistente
         self.data_model = TradingDataModelWithDB()
+        self.settings = SettingsStore(self.data_model.db_manager)
+        set_language(self.settings.get('language'))
+        self.dark_mode = self.settings.get_bool('dark_mode')
         self.ai_analyzer = AIAnalyzer()
         self.theme_manager = ThemeManager()
-        
-        # Crear menú principal
-        self.menu_bar = MainMenuBar(self)
-        self.setMenuBar(self.menu_bar)
-        
-        # Crear widget central
+
+        # Widget central
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
-        
-        # Layout principal
-        main_layout = QVBoxLayout()
-        central_widget.setLayout(main_layout)
-        
+        main_layout = QVBoxLayout(central_widget)
+        main_layout.setContentsMargins(0, 0, 0, 0)
+        main_layout.setSpacing(0)
+
+        # Cabecera (reemplaza la barra de menús: todo vive en Configuración)
+        main_layout.addWidget(self._build_header())
+
+        body = QWidget()
+        body_layout = QVBoxLayout(body)
+        body_layout.setContentsMargins(18, 16, 18, 12)
+        main_layout.addWidget(body, 1)
+
         # Crear splitter para layout flexible
         splitter = QSplitter(Qt.Horizontal)
-        
-        # Panel izquierdo: Tabla de trading
+        splitter.setChildrenCollapsible(False)
+
+        # Panel izquierdo: Tabla + gráfico en tarjetas
         left_panel = QWidget()
-        left_layout = QVBoxLayout()
-        left_panel.setLayout(left_layout)
-        
-        # Tabla de trading
+        left_layout = QVBoxLayout(left_panel)
+        left_layout.setContentsMargins(0, 0, 0, 0)
+        left_layout.setSpacing(14)
+
+        self.table_card = QFrame()
+        self.table_card.setObjectName('card')
+        table_layout = QVBoxLayout(self.table_card)
+        table_layout.setContentsMargins(16, 14, 16, 12)
+        table_title_row = QHBoxLayout()
+        self.table_title = QLabel('📅 ' + tr('week_results', 'Resultados de la semana'))
+        self.table_title.setObjectName('h2')
+        self.table_hint = QLabel(tr('table_hint', 'Doble clic para editar · clic derecho para más opciones'))
+        self.table_hint.setObjectName('muted')
+        table_title_row.addWidget(self.table_title)
+        table_title_row.addStretch()
+        table_title_row.addWidget(self.table_hint)
+        table_layout.addLayout(table_title_row)
         self.table_widget = TradingTableWidget(self.data_model)
-        left_layout.addWidget(self.table_widget)
-        
+        self.table_widget.default_pair = self.settings.get('default_pair')
+        self.table_widget.default_duration = self.settings.get('default_duration')
+        self.table_widget.set_capital_edit_mode(self.settings.get_bool('capital_edit_mode'))
+        table_layout.addWidget(self.table_widget)
+        left_layout.addWidget(self.table_card)
+
         # Gráfico mejorado
+        self.chart_card = QFrame()
+        self.chart_card.setObjectName('card')
+        chart_layout = QVBoxLayout(self.chart_card)
+        chart_layout.setContentsMargins(0, 0, 0, 6)
         self.chart_widget = EnhancedChartWidget()
-        left_layout.addWidget(self.chart_widget)
-        
-        # Panel derecho: Resumen y análisis
+        self.chart_widget.legend_visible = self.settings.get_bool('legend_visible')
+        self.chart_widget.set_animations_enabled(self.settings.get_bool('chart_animations'))
+        self.chart_widget.set_mode(self.settings.get('chart_mode'))
+        chart_layout.addWidget(self.chart_widget)
+        left_layout.addWidget(self.chart_card, 1)
+
+        # Panel derecho: Resumen y análisis (desplazable)
         self.summary_panel = SummaryPanel()
-        
+        self.summary_panel.advice_group.setVisible(self.settings.get_bool('show_daily_advice'))
+        summary_scroll = QScrollArea()
+        summary_scroll.setWidgetResizable(True)
+        summary_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        summary_scroll.setWidget(self.summary_panel)
+        summary_scroll.setMinimumWidth(380)
+
         # Añadir paneles al splitter
         splitter.addWidget(left_panel)
-        splitter.addWidget(self.summary_panel)
-        
+        splitter.addWidget(summary_scroll)
+
         # Configurar proporciones del splitter (70% - 30%)
-        splitter.setSizes([980, 420])
+        splitter.setSizes([1000, 420])
         splitter.setStretchFactor(0, 7)
         splitter.setStretchFactor(1, 3)
-        
-        main_layout.addWidget(splitter)
-        
+
+        body_layout.addWidget(splitter)
+
         # Barra de estado
         self.status_bar = QStatusBar()
         self.setStatusBar(self.status_bar)
         self.status_bar.showMessage("✅ " + tr("loading"))
-        
-        # Aplicar tema inicial (claro)
-        self.apply_theme(False)
-        
+
+        self._setup_shortcuts()
+
+        # Aplicar tema guardado (oscuro por defecto)
+        self.apply_theme(self.dark_mode)
+
         # Cargar datos iniciales
         self.load_initial_data()
         # Actualizar título con la semana actual tras cargar datos
@@ -117,6 +164,112 @@ class MainWindow(QMainWindow):
             self.update_window_title_with_week()
         except Exception:
             pass
+
+        for i, w in enumerate((self.table_card, self.chart_card)):
+            fade_in(w, duration=650, delay=80 + i * 140)
+
+    def _build_header(self):
+        """Cabecera con marca, semana y acciones principales."""
+        header = QFrame()
+        header.setObjectName('header')
+        layout = QHBoxLayout(header)
+        layout.setContentsMargins(20, 12, 20, 12)
+        layout.setSpacing(12)
+
+        if self.logo_path:
+            logo = QLabel()
+            logo.setPixmap(QPixmap(self.logo_path).scaled(40, 40, Qt.KeepAspectRatio, Qt.SmoothTransformation))
+            layout.addWidget(logo)
+        brand = QVBoxLayout()
+        brand.setSpacing(0)
+        name = QLabel('W-T-F')
+        name.setObjectName('brand')
+        tagline = QLabel('Weekend Trading Finance')
+        tagline.setObjectName('caption')
+        brand.addWidget(name)
+        brand.addWidget(tagline)
+        layout.addLayout(brand)
+        layout.addSpacing(10)
+        self.week_chip = QLabel('')
+        self.week_chip.setObjectName('chip')
+        layout.addWidget(self.week_chip)
+        layout.addStretch()
+
+        self.image_btn = QPushButton('✨  ' + tr('result_image_title', 'Imagen de resultado'))
+        self.image_btn.setObjectName('primary')
+        self.image_btn.setCursor(Qt.PointingHandCursor)
+        self.image_btn.setToolTip(tr('generate_result_image', 'Generar imagen del resultado') + '  (Ctrl+G)')
+        self.image_btn.clicked.connect(lambda: self.open_result_image())
+        layout.addWidget(self.image_btn)
+
+        self.save_btn = QPushButton('💾')
+        self.save_btn.setToolTip(tr('save_week') + '  (Ctrl+S)')
+        self.save_btn.clicked.connect(self.save_week)
+        self.theme_btn = QPushButton('')
+        self.theme_btn.setToolTip(tr('dark_mode') + '  (Ctrl+D)')
+        self.theme_btn.clicked.connect(lambda: self.set_dark_mode(not self.dark_mode))
+        self.settings_btn = QPushButton('⚙️')
+        self.settings_btn.setToolTip(tr('settings_title', 'Configuración') + '  (Ctrl+,)')
+        self.settings_btn.clicked.connect(lambda: self.open_settings())
+        for b in (self.save_btn, self.theme_btn, self.settings_btn):
+            b.setObjectName('ghost')
+            b.setCursor(Qt.PointingHandCursor)
+            b.setFixedWidth(46)
+            b.setMinimumWidth(46)
+            b.setStyleSheet('font-size: 13pt; padding: 6px;')
+            layout.addWidget(b)
+        return header
+
+    def _setup_shortcuts(self):
+        for keys, slot in (
+            (QKeySequence.Save, self.save_week),
+            (QKeySequence.Open, self.load_week),
+            ('Ctrl+G', lambda: self.open_result_image()),
+            ('Ctrl+,', lambda: self.open_settings()),
+            ('Ctrl+E', lambda: self.export_data()),
+            ('Ctrl+D', lambda: self.set_dark_mode(not self.dark_mode)),
+            (QKeySequence.Quit, self.close),
+        ):
+            QShortcut(QKeySequence(keys), self, activated=slot)
+
+    # ------------------------------------------------------------------
+    # Acciones invocadas desde la ventana de Configuración
+    def open_settings(self, page='appearance'):
+        dialog = SettingsDialog(self, self.settings, page)
+        dialog.exec_()
+        # Refrescar valores por defecto que usa la tabla
+        self.table_widget.default_pair = self.settings.get('default_pair')
+        self.table_widget.default_duration = self.settings.get('default_duration')
+
+    def open_result_image(self, day=None):
+        dialog = ResultImageDialog(self, self.data_model, self.settings, self.dark_mode,
+                                   initial_day=day or self.table_widget.selected_day(),
+                                   open_settings=self.open_settings)
+        dialog.day_updated.connect(self.on_day_updated)
+        dialog.exec_()
+
+    def on_day_updated(self, day):
+        self.table_widget.load_data()
+        self.on_data_changed()
+
+    def set_dark_mode(self, is_dark: bool):
+        self.settings.set('dark_mode', bool(is_dark))
+        self.apply_theme(bool(is_dark))
+
+    def change_language(self, lang: str):
+        set_language(lang)
+        self.settings.set('language', lang)
+        self.on_language_changed(lang)
+
+    def set_chart_mode(self, mode: str):
+        self.settings.set('chart_mode', mode)
+        self.chart_widget.set_mode(mode)
+
+    def set_chart_animations(self, enabled: bool):
+        self.chart_widget.set_animations_enabled(enabled)
+
+    def set_capital_edit_mode(self, enabled: bool):
+        self.table_widget.set_capital_edit_mode(enabled)
 
     def update_window_title_with_week(self):
         """Actualizar el título de la ventana para mostrar la semana actual."""
@@ -129,87 +282,44 @@ class MainWindow(QMainWindow):
                 week_date = today - timedelta(days=today.weekday())
             # Formato: App Title — Semana YYYY-MM-DD
             self.setWindowTitle(f"{base_title} — {tr('week')} {week_date.isoformat()}")
+            self.week_chip.setText(f"📅 {tr('week')} {week_date.strftime('%d/%m/%Y')}")
         except Exception:
             # Fallback al título base si algo falla
             self.setWindowTitle(tr("app_title"))
     
     def setup_connections(self):
         """Configurar conexiones entre componentes"""
-        # Conexiones del menú
-        self.menu_bar.save_triggered.connect(self.save_week)
-        self.menu_bar.load_triggered.connect(self.load_week)
-        self.menu_bar.load_from_db_triggered.connect(self.load_from_database)
-        self.menu_bar.set_capital_triggered.connect(self.set_initial_capital)
-        self.menu_bar.theme_changed.connect(self.apply_theme)
-        self.menu_bar.show_daily_advice_triggered.connect(self.show_daily_advice)
-        self.menu_bar.daily_advice_visibility_changed.connect(self.on_toggle_daily_advice_visibility)
-        self.menu_bar.show_weekly_summary_triggered.connect(self.show_weekly_summary_notification)
-        self.menu_bar.start_new_week_triggered.connect(self.start_new_week_reset)
-        self.menu_bar.export_excel_triggered.connect(self.export_to_excel)
-        self.menu_bar.export_csv_triggered.connect(self.export_to_csv)
-        self.menu_bar.export_json_triggered.connect(self.export_to_json)
-        # Visibilidad de leyenda del gráfico
-        self.menu_bar.legend_visibility_changed.connect(self.on_toggle_legend)
-        # Cambio de idioma desde la barra de menú
-        self.menu_bar.language_changed.connect(self.on_language_changed)
-        
         # Conexiones de la tabla
         self.table_widget.data_changed.connect(self.on_data_changed)
         self.table_widget.save_status_changed.connect(self.update_save_status)
-        
-        # Conexiones del panel de resumen
-        self.summary_panel.update_summary(self.data_model.get_weekly_summary(), {})
-        
+        self.table_widget.generate_image_requested.connect(self.open_result_image)
+
+        # Persistir el modo del gráfico elegido desde sus botones 2D/3D
+        self.chart_widget.mode_changed.connect(lambda m: self.settings.set('chart_mode', m))
+
         # Mostrar consejo del día al iniciar
         self.show_daily_advice()
 
-        # Toggle: modo edición por capital en la tabla desde el menú
-        try:
-            self.menu_bar.day_capital_edit_mode_changed.connect(self.table_widget.set_capital_edit_mode)
-        except Exception as e:
-            print(f"No se pudo conectar el modo edición por capital: {e}")
-    
     def apply_theme(self, is_dark: bool):
         """Aplicar tema profesional a toda la aplicación"""
-        self.dark_mode = is_dark  # Guardar estado del tema
-        
-        # Usar el ThemeManager mejorado para aplicar tema a toda la aplicación
+        self.dark_mode = is_dark
+
+        # El ThemeManager aplica un único stylesheet a nivel de QApplication,
+        # por lo que cubre automáticamente ventana principal, tabla,
+        # barra de estado y cualquier diálogo (presente o futuro).
         self.theme_manager.apply_theme(self, is_dark)
-        
-        # Actualizar gráfico
+        self.theme_btn.setText('☀️' if is_dark else '🌙')
+
+        # Colores dinámicos de cada componente
         self.chart_widget.set_theme(is_dark)
-        # Forzar refresco del gráfico para aplicar nuevos colores
-        try:
-            if self.data_model:
-                self.chart_widget.update_chart(self.data_model)
-        except Exception:
-            pass
-        
-        # Actualizar panel de resumen
-        self.summary_panel.setStyleSheet(self.theme_manager.get_widget_styles(is_dark))
-        # Aplicar tema específico al panel para ajustar colores internos
-        try:
-            self.summary_panel.set_theme(is_dark)
-        except Exception:
-            pass
-        
-        # Actualizar tabla
-        self.table_widget.setStyleSheet(self.theme_manager.get_widget_styles(is_dark))
-        
-        # Actualizar barra de menú
-        self.menu_bar.setStyleSheet(self.theme_manager.get_widget_styles(is_dark))
-        
-        # Actualizar barra de estado
-        self.status_bar.setStyleSheet(self.theme_manager.get_widget_styles(is_dark))
-        
-        # Actualizar splitter y widgets principales
-        if hasattr(self, 'centralWidget'):
-            self.centralWidget().setStyleSheet(self.theme_manager.get_widget_styles(is_dark))
-        
-        # Aplicar tema a todos los diálogos abiertos
-        for widget in QApplication.allWidgets():
-            if isinstance(widget, (QDialog, QFileDialog, QInputDialog, QMessageBox)):
-                widget.setStyleSheet(self.theme_manager.get_widget_styles(is_dark))
+        self.table_widget.set_theme(is_dark)
+        self.summary_panel.set_theme(is_dark)
+
+        # Brillo del botón principal acorde al tema
+        accent = self.theme_manager.colors(is_dark)['accent']
+        if hasattr(self.image_btn, '_pulse_anim'):
+            self.image_btn._pulse_anim.stop()
+        pulse_glow(self.image_btn, accent, low=10, high=30)
 
     def on_toggle_legend(self, visible: bool):
         """Mostrar u ocultar la leyenda del gráfico desde el menú."""
@@ -342,7 +452,7 @@ class MainWindow(QMainWindow):
         """Mostrar/Ocultar el grupo de consejo del día desde el menú."""
         try:
             self.summary_panel.advice_group.setVisible(visible)
-            msg = ("✅ Consejo visible" if visible else "🙈 Consejo oculto")
+            msg = ("✅ " + tr('daily_advice') if visible else "🙈 " + tr('daily_advice'))
             self.status_bar.showMessage(msg, 2000)
         except Exception as e:
             print(f"No se pudo cambiar visibilidad del consejo: {e}")
@@ -350,8 +460,7 @@ class MainWindow(QMainWindow):
     def show_weekly_summary_notification(self):
         """Mostrar notificación de resumen semanal (útil para sábados)."""
         try:
-            message = get_weekly_summary_message(self.data_model)
-            QMessageBox.information(self, tr("weekly_summary_panel"), message)
+            WeeklySummaryDialog(self.data_model, self.dark_mode, self).exec_()
         except Exception as e:
             QMessageBox.warning(self, tr("warning"), f"{tr('operation_failed')}: {e}")
 
@@ -482,6 +591,10 @@ class MainWindow(QMainWindow):
         # Retraducir gráfico
         if hasattr(self.chart_widget, 'apply_language'):
             self.chart_widget.apply_language()
+        # Cabecera y tarjetas
+        self.image_btn.setText('✨  ' + tr('result_image_title', 'Imagen de resultado'))
+        self.table_title.setText('📅 ' + tr('week_results', 'Resultados de la semana'))
+        self.table_hint.setText(tr('table_hint', 'Doble clic para editar · clic derecho para más opciones'))
     
     @pyqtSlot(str)
     def update_save_status(self, status):
@@ -492,18 +605,12 @@ class MainWindow(QMainWindow):
         self.summary_panel.update_status(status)
     
     def save_week(self):
-        """Guardar automáticamente la semana en Weekend-Saved sin diálogo"""
+        """Guardar automáticamente la semana en la carpeta de semanas sin diálogo"""
         try:
-            import os
-            import sys
             from datetime import datetime, timedelta
 
-            # Crear carpeta Weekend-Saved junto al ejecutable (si congelado) o al script
-            if getattr(sys, 'frozen', False):
-                base_dir = os.path.dirname(sys.executable)
-            else:
-                base_dir = os.path.dirname(os.path.abspath(__file__))
-            save_folder = os.path.join(base_dir, "Weekend-Saved")
+            # Carpeta de semanas configurable (por defecto Weekend-Saved junto a la app)
+            save_folder = self.settings.weeks_dir()
             os.makedirs(save_folder, exist_ok=True)
 
             # Determinar el lunes de la semana a guardar
@@ -532,7 +639,7 @@ class MainWindow(QMainWindow):
     def load_week(self):
         """Cargar semana desde un diálogo que lista las semanas guardadas."""
         try:
-            dialog = LoadWeekDialog(self, tr=tr)
+            dialog = LoadWeekDialog(self, tr=tr, folder=self.settings.weeks_dir())
             if dialog.exec_() == QDialog.Accepted:
                 filename = dialog.get_selected_file_path()
                 if not filename:
@@ -573,10 +680,6 @@ class MainWindow(QMainWindow):
                 dialog.setLabelText(tr("week") + ":")
                 dialog.setComboBoxItems([f"{tr('week')} {w}" for w in weeks])
 
-                # Aplicar tema al diálogo
-                if self.dark_mode:
-                    dialog.setStyleSheet(self.theme_manager.get_widget_styles(True))
-
                 if dialog.exec_() == QInputDialog.Accepted:
                     item = dialog.textValue()
                     # Extraer fecha de la semana usando clave traducida
@@ -606,12 +709,8 @@ class MainWindow(QMainWindow):
     def ask_for_initial_capital(self):
         """Preguntar por el capital inicial al iniciar una semana nueva"""
         try:
-            dialog = CapitalDialog(100.0, self)  # Capital inicial por defecto: $100
-            
-            # Aplicar tema al diálogo
-            if self.dark_mode:
-                dialog.setStyleSheet(self.theme_manager.get_widget_styles(True))
-            
+            dialog = CapitalDialog(100.0, self, first_time=True)  # Capital inicial por defecto: $100
+
             if dialog.exec_() == CapitalDialog.Accepted:
                 new_capital = dialog.get_capital()
                 self.data_model.initial_capital = new_capital
@@ -643,11 +742,7 @@ class MainWindow(QMainWindow):
         """Abrir diálogo para establecer el capital inicial"""
         try:
             dialog = CapitalDialog(self.data_model.initial_capital, self)
-            
-            # Aplicar tema al diálogo
-            if self.dark_mode:
-                dialog.setStyleSheet(self.theme_manager.get_widget_styles(True))
-            
+
             if dialog.exec_() == CapitalDialog.Accepted:
                 new_capital = dialog.get_capital()
                 if new_capital != self.data_model.initial_capital:
@@ -659,61 +754,23 @@ class MainWindow(QMainWindow):
             QMessageBox.critical(self, tr("error"), f"{tr('operation_failed')}: {str(e)}")
             self.update_save_status("❌ " + tr("operation_failed"))
     
+    def export_data(self, fmt=None):
+        """Abrir la ventana de exportación (fmt preselecciona Excel, CSV o JSON)."""
+        try:
+            show_export_dialog(self.data_model, self.settings, fmt, self.dark_mode, self)
+        except Exception as e:
+            QMessageBox.critical(self, tr("error"), f"{tr('export_error')}: {str(e)}")
+            self.update_save_status("❌ " + tr("export_error"))
+
     def export_to_excel(self):
-        """Exportar datos a Excel"""
-        try:
-            if not self.data_model:
-                QMessageBox.warning(self, tr("warning"), tr("no_data_to_export"))
-                return
-            
-            # Obtener datos de la semana actual
-            weekly_data = self.data_model.get_weekly_data()
-            # Número de semana basado en fecha de inicio
-            week_number = self.data_model.week_start_date.isocalendar()[1]
-            
-            # Mostrar diálogo de exportación
-            show_export_dialog(weekly_data, week_number, self)
-            
-        except Exception as e:
-            QMessageBox.critical(self, tr("error"), f"{tr('export_error')}: {str(e)}")
-            self.update_save_status("❌ " + tr("export_error"))
-    
+        self.export_data('excel')
+
     def export_to_csv(self):
-        """Exportar datos a CSV"""
-        try:
-            if not self.data_model:
-                QMessageBox.warning(self, tr("warning"), tr("no_data_to_export"))
-                return
-            
-            # Obtener datos de la semana actual
-            weekly_data = self.data_model.get_weekly_data()
-            week_number = self.data_model.week_start_date.isocalendar()[1]
-            
-            # Mostrar diálogo de exportación
-            show_export_dialog(weekly_data, week_number, self)
-            
-        except Exception as e:
-            QMessageBox.critical(self, tr("error"), f"{tr('export_error')}: {str(e)}")
-            self.update_save_status("❌ " + tr("export_error"))
-    
+        self.export_data('csv')
+
     def export_to_json(self):
-        """Exportar datos a JSON"""
-        try:
-            if not self.data_model:
-                QMessageBox.warning(self, tr("warning"), tr("no_data_to_export"))
-                return
-            
-            # Obtener datos de la semana actual
-            weekly_data = self.data_model.get_weekly_data()
-            week_number = self.data_model.week_start_date.isocalendar()[1]
-            
-            # Mostrar diálogo de exportación
-            show_export_dialog(weekly_data, week_number, self)
-            
-        except Exception as e:
-            QMessageBox.critical(self, tr("error"), f"{tr('export_error')}: {str(e)}")
-            self.update_save_status("❌ " + tr("export_error"))
-    
+        self.export_data('json')
+
     def closeEvent(self, event):
         """Manejar cierre de la aplicación"""
         try:
@@ -731,6 +788,11 @@ class MainWindow(QMainWindow):
 
 def main():
     """Función principal"""
+    # En el ejecutable empaquetado, trabajar siempre desde la carpeta de instalación:
+    # así trading_data.db, src/images y Weekend-Saved no dependen de cómo se lanzó la app.
+    if getattr(sys, 'frozen', False):
+        os.chdir(os.path.dirname(sys.executable))
+
     app = QApplication(sys.argv)
     
     # Configurar estilo de la aplicación
@@ -749,9 +811,16 @@ def main():
     except Exception as e:
         print(f"Error al establecer icono global: {e}")
     
-    # Crear y mostrar ventana principal
+    # Crear y mostrar ventana principal con aparición suave
     window = MainWindow()
+    window.setWindowOpacity(0.0)
     window.show()
+    intro = QPropertyAnimation(window, b"windowOpacity", window)
+    intro.setDuration(550)
+    intro.setStartValue(0.0)
+    intro.setEndValue(1.0)
+    intro.setEasingCurve(QEasingCurve.OutCubic)
+    intro.start()
     
     sys.exit(app.exec_())
 

@@ -55,16 +55,33 @@ class DayCapitalDialog(QDialog):
         # Resultado
         self.result_label = QLabel('')
         self.result_label.setAlignment(Qt.AlignCenter)
-        self.result_label.setStyleSheet('font-size: 12pt; color: #2c3e50;')
+        self.result_label.setStyleSheet('font-size: 12pt; font-weight: bold;')
         layout.addWidget(self.result_label)
 
         # Botones
         buttons = QHBoxLayout()
+        buttons.setSpacing(10)
         btn_cancel = QPushButton(tr('cancel'))
         btn_cancel.clicked.connect(self.reject)
+        btn_cancel.setStyleSheet("""
+            QPushButton {
+                background-color: #7f8a9d;
+                color: white;
+            }
+            QPushButton:hover { background-color: #6c7789; }
+            QPushButton:pressed { background-color: #5a6376; }
+        """)
         btn_ok = QPushButton(tr('accept') or 'Aceptar')
         btn_ok.setDefault(True)
         btn_ok.clicked.connect(self._on_accept)
+        btn_ok.setStyleSheet("""
+            QPushButton {
+                background-color: #16a34a;
+                color: white;
+            }
+            QPushButton:hover { background-color: #128a3e; }
+            QPushButton:pressed { background-color: #0f7534; }
+        """)
         buttons.addWidget(btn_cancel)
         buttons.addWidget(btn_ok)
 

@@ -51,7 +51,18 @@ class DatabaseManager:
                         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                     )
                 ''')
-                
+
+                # Detalles de sesión por día (par de divisas y duración)
+                cursor.execute('''
+                    CREATE TABLE IF NOT EXISTS day_details (
+                        week_start_date TEXT NOT NULL,
+                        day TEXT NOT NULL,
+                        pair TEXT DEFAULT '',
+                        duration TEXT DEFAULT '',
+                        PRIMARY KEY (week_start_date, day)
+                    )
+                ''')
+
                 conn.commit()
         except sqlite3.Error as e:
             print(f"Error al inicializar la base de datos: {e}")
@@ -88,7 +99,14 @@ class DatabaseManager:
                          jueves_amount, viernes_amount, initial_capital)
                         VALUES (?, ?, ?, ?, ?, ?, ?)
                     ''', (week_start_date, lunes, martes, miercoles, jueves, viernes, data.get('initial_capital', 100.0)))
-                
+
+                # Guardar detalles de sesión (par / duración) de cada día
+                for day, info in trading_data.items():
+                    cursor.execute('''
+                        INSERT OR REPLACE INTO day_details (week_start_date, day, pair, duration)
+                        VALUES (?, ?, ?, ?)
+                    ''', (week_start_date, day, info.get('pair', '') or '', info.get('duration', '') or ''))
+
                 conn.commit()
                 return True
                 
@@ -115,7 +133,7 @@ class DatabaseManager:
                     week_start_date, lunes, martes, miercoles, jueves, viernes, initial_capital = row
                     
                     # Convertir a formato compatible con el modelo
-                    return {
+                    return self._with_day_details(cursor, {
                         'week_start_date': week_start_date,
                         'initial_capital': initial_capital,
                         'data': {
@@ -125,7 +143,7 @@ class DatabaseManager:
                             'Jueves': {'amount': jueves, 'destination': 'Retiro Personal'},
                             'Viernes': {'amount': viernes, 'destination': 'Retiro Personal'}
                         }
-                    }
+                    })
                 return None
                 
         except sqlite3.Error as e:
@@ -149,7 +167,7 @@ class DatabaseManager:
                 if row:
                     week_start_date, lunes, martes, miercoles, jueves, viernes, initial_capital = row
                     
-                    return {
+                    return self._with_day_details(cursor, {
                         'week_start_date': week_start_date,
                         'initial_capital': initial_capital,
                         'data': {
@@ -159,7 +177,7 @@ class DatabaseManager:
                             'Jueves': {'amount': jueves, 'destination': 'Retiro Personal'},
                             'Viernes': {'amount': viernes, 'destination': 'Retiro Personal'}
                         }
-                    }
+                    })
                 return None
                 
         except sqlite3.Error as e:
@@ -190,3 +208,43 @@ class DatabaseManager:
         except sqlite3.Error as e:
             print(f"Error al obtener todas las semanas: {e}")
             return []
+
+    def _with_day_details(self, cursor, week: Dict) -> Dict:
+        """Añadir par/duración guardados a cada día de la semana."""
+        try:
+            cursor.execute(
+                'SELECT day, pair, duration FROM day_details WHERE week_start_date = ?',
+                (week['week_start_date'],)
+            )
+            for day, pair, duration in cursor.fetchall():
+                if day in week['data']:
+                    week['data'][day]['pair'] = pair or ''
+                    week['data'][day]['duration'] = duration or ''
+        except sqlite3.Error as e:
+            print(f"Error al cargar detalles de los días: {e}")
+        return week
+
+    def get_config(self, key: str, default: Optional[str] = None) -> Optional[str]:
+        """Leer un valor de configuración de la aplicación."""
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                row = conn.execute('SELECT value FROM app_config WHERE key = ?', (key,)).fetchone()
+                return row[0] if row and row[0] is not None else default
+        except sqlite3.Error as e:
+            print(f"Error al leer configuración '{key}': {e}")
+            return default
+
+    def set_config(self, key: str, value: str) -> bool:
+        """Guardar un valor de configuración de la aplicación."""
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                conn.execute(
+                    "INSERT INTO app_config (key, value, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP) "
+                    "ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP",
+                    (key, value)
+                )
+                conn.commit()
+                return True
+        except sqlite3.Error as e:
+            print(f"Error al guardar configuración '{key}': {e}")
+            return False

@@ -1,346 +1,500 @@
 """
-Widget de gráfico mejorado con mejor visualización
+Widget de gráfico mejorado: modo 2D (barras con degradado y brillo neón) y
+modo 3D (barras volumétricas rotables con el ratón), ambos animados.
 """
 
-from PyQt5.QtWidgets import QWidget, QVBoxLayout, QSizePolicy
-from PyQt5.QtCore import QTimer
-from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
-from matplotlib.figure import Figure
-import matplotlib.pyplot as plt
-import matplotlib.patches as patches
-from datetime import datetime
+from datetime import datetime, timedelta
+
 import numpy as np
+import matplotlib.patches as patches
+import matplotlib.patheffects as pe
+from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
+from matplotlib.colors import LinearSegmentedColormap, to_rgba
+from matplotlib.figure import Figure
+from matplotlib.ticker import FuncFormatter
+from PyQt5.QtCore import QTimer, QVariantAnimation, QEasingCurve, pyqtSignal, Qt
+from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
+                             QSizePolicy, QButtonGroup)
+
+from src.styles.themes import ThemeManager
 from src.utils.i18n import tr
+from src.utils.settings_store import format_result
+
+DAY_KEYS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
+WITHDRAWAL_NAMES = ('Retiro Personal', 'Personal Withdrawal')
+REINVESTMENT_NAMES = ('Reinversión', 'Reinvestment')
+
+
+def _mix(c1, c2, t):
+    a, b = np.array(to_rgba(c1)), np.array(to_rgba(c2))
+    return tuple(a + (b - a) * t)
+
+
+def _axis_money(v, _pos=None):
+    return f"{'-' if v < 0 else ''}${abs(v):,.0f}"
+
+
+def _short_duration(duration: str) -> str:
+    return duration.replace(' min', 'm').replace(' h', 'h').strip()
+
 
 class EnhancedChartWidget(QWidget):
-    """Widget de gráfico mejorado con mejor visualización"""
-    
+    """Widget de gráfico con modos 2D / 3D y animación de crecimiento."""
+
+    mode_changed = pyqtSignal(str)
+
     def __init__(self):
         super().__init__()
-        self.is_dark = False
+        self.is_dark = True
         self.legend_visible = True
-        # Posición por defecto dentro del gráfico para evitar encoger el área
         self.legend_position = 'upper_right'  # opciones: outside_right, upper_right, upper_center
-        self.setup_ui()
-        
-    def setup_ui(self):
-        """Configurar la interfaz del gráfico"""
-        layout = QVBoxLayout()
+        self.mode = '3d'
+        self.animations_enabled = True
+        self.last_data_model = None
+        self._view = None  # (elev, azim) elegido por el usuario en 3D
+        self._items = []
 
-        # Crear figura y canvas (usar constrained_layout para mejorar ajuste inicial)
-        self.figure = Figure(figsize=(12, 6), dpi=100, facecolor='white', edgecolor='none', constrained_layout=True)
+        self._anim = QVariantAnimation(self)
+        self._anim.setStartValue(0.0)
+        self._anim.setEndValue(1.0)
+        self._anim.setDuration(1100)
+        self._anim.setEasingCurve(QEasingCurve.OutCubic)
+        self._anim.valueChanged.connect(lambda v: self._render(float(v), intro=True))
+        self._anim.finished.connect(lambda: self._render(1.0, intro=True))
+
+        self.setup_ui()
+
+    # ------------------------------------------------------------------ UI
+    def setup_ui(self):
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(16, 14, 16, 8)
+        layout.setSpacing(6)
+
+        header = QHBoxLayout()
+        titles = QVBoxLayout()
+        titles.setSpacing(0)
+        self.title_label = QLabel(tr('weekly_performance_title'))
+        self.title_label.setObjectName('h2')
+        self.subtitle_label = QLabel('')
+        self.subtitle_label.setObjectName('muted')
+        titles.addWidget(self.title_label)
+        titles.addWidget(self.subtitle_label)
+        header.addLayout(titles)
+        header.addStretch()
+
+        self.mode_group = QButtonGroup(self)
+        self.mode_group.setExclusive(True)
+        self.mode_buttons = {}
+        for key, text in (('2d', '2D'), ('3d', '3D')):
+            btn = QPushButton(text)
+            btn.setObjectName('segment')
+            btn.setCheckable(True)
+            btn.setCursor(Qt.PointingHandCursor)
+            btn.setToolTip(tr('chart_mode_tooltip', 'Cambiar vista del gráfico (en 3D puedes arrastrar para rotar)'))
+            btn.clicked.connect(lambda _=False, k=key: self.set_mode(k, emit=True))
+            self.mode_group.addButton(btn)
+            self.mode_buttons[key] = btn
+            header.addWidget(btn)
+        self.mode_buttons[self.mode].setChecked(True)
+        layout.addLayout(header)
+
+        self.figure = Figure(figsize=(12, 6), dpi=100)
         self.canvas = FigureCanvas(self.figure)
-        # Asegurar que el canvas se expanda con el contenedor
         self.canvas.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-        self.canvas.updateGeometry()
+        self.canvas.setMinimumHeight(300)
         layout.addWidget(self.canvas)
 
-        self.setLayout(layout)
-
-        # Configurar estilo inicial
-        self.setup_chart_style()
-
     def showEvent(self, event):
-        """Tras mostrar el widget, rehacer el layout del gráfico para capturar el tamaño real."""
+        """Tras mostrar el widget, redibujar para capturar el tamaño real."""
         super().showEvent(event)
-        QTimer.singleShot(0, self._post_show_adjust)
+        QTimer.singleShot(0, lambda: self._render(1.0) if self._items else None)
 
-    def _post_show_adjust(self):
-        try:
-            if hasattr(self, 'last_data_model') and self.last_data_model:
-                # Redibujar con datos ya cargados para ajustar al tamaño real
-                self.update_chart(self.last_data_model)
-            else:
-                # Ajuste mínimo si no hay datos aún
-                self.figure.tight_layout()
-                self.canvas.draw()
-        except Exception:
-            pass
-    
-    def setup_chart_style(self):
-        """Configurar el estilo del gráfico"""
-        # Estilo profesional
-        try:
-            plt.style.use('seaborn-v0_8-whitegrid')
-        except Exception:
-            plt.style.use('seaborn')
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        if self._items and self._anim.state() != QVariantAnimation.Running:
+            # Recalcular redondeos 2D según la nueva proporción
+            if self.mode == '2d':
+                QTimer.singleShot(0, lambda: self._render(1.0))
 
-        # Paleta de colores elegante
-        self.colors = {
-            'positive': '#2ecc71',      # Verde suave
-            'negative': '#e74c3c',      # Rojo elegante
-            # 'withdrawal': '#8e44ad',
-            'withdrawal': '#2ecc71',    # Púrpura para retiro personal
-            'reinvestment': '#f1c40f',  # Dorado para reinversión
-            'neutral': '#bdc3c7',       # Gris
-            'text': '#2c3e50',          # Texto oscuro
-            'grid': '#ecf0f1',          # Grilla clara
-            'avg_line': '#3498db'       # Línea de promedio
-        }
-
-        # Configurar fuentes
-        plt.rcParams['font.family'] = 'sans-serif'
-        plt.rcParams['font.sans-serif'] = ['Segoe UI', 'Arial', 'DejaVu Sans']
-        plt.rcParams['font.size'] = 10
-    
-    def update_chart(self, data_model):
+    # ------------------------------------------------------------- API
+    def update_chart(self, data_model, animate=True):
         """Actualizar el gráfico con datos del modelo"""
-        # Guardar referencia para poder regenerar con nuevo idioma
         self.last_data_model = data_model
         try:
-            self.figure.clear()
-            
-            # Crear subplot principal
-            ax = self.figure.add_subplot(111)
-            
-            # Obtener datos, usando días dinámicos del modelo
-            base_daily_data = []
-            model_days = getattr(data_model, 'days', [])
-            # Mapeo de claves de días para etiquetas traducidas
-            day_keys = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
-
-            for i, day_key in enumerate(model_days):
-                amount = data_model.daily_amounts.get(day_key, 0)
-                destination = data_model.daily_destinations.get(day_key, '')
-                # Etiqueta visible: abreviatura del nombre traducido (si disponible)
-                # Si el modelo usa claves como 'monday', 'tuesday', etc., usar directamente la traducción
-                label_name = tr(day_key)[:3] if day_key in day_keys else (tr(day_keys[i])[:3] if i < len(day_keys) else day_key[:3])
-                base_daily_data.append({
-                    'day': label_name,
-                    'amount': amount,
-                    'destination': destination,
-                    'is_positive': amount > 0,
-                    'is_withdrawal': destination in (tr('personal_withdrawal'), 'Retiro Personal', 'Personal Withdrawal'),
-                    'is_reinvestment': destination in (tr('reinvestment'), 'Reinversión', 'Reinvestment')
-                })
-
-            # Extender visualmente el gráfico como si tuviera sábado y domingo
-            daily_data = list(base_daily_data)
-            # Agregar placeholders solo si no existen ya en el modelo
-            if 'saturday' not in model_days:
-                daily_data.append({
-                    'day': tr('saturday')[:3],
-                    'amount': 0,
-                    'destination': '',
-                    'is_positive': False,
-                    'is_withdrawal': False,
-                    'is_reinvestment': False
-                })
-            if 'sunday' not in model_days:
-                daily_data.append({
-                    'day': tr('sunday')[:3],
-                    'amount': 0,
-                    'destination': '',
-                    'is_positive': False,
-                    'is_withdrawal': False,
-                    'is_reinvestment': False
-                })
-            
-            # Preparar datos para el gráfico
-            x_positions = np.arange(len(daily_data))
-            # Guardar montos base (sin placeholders) para cálculos como promedio
-            base_amounts = [d['amount'] for d in base_daily_data]
-            amounts = [d['amount'] for d in daily_data]
-            
-            # Determinar colores de las barras
-            colors = []
-            for data in daily_data:
-                if data['amount'] < 0:
-                    colors.append(self.colors['negative'])
-                elif data['amount'] == 0:
-                    colors.append(self.colors['neutral'])
-                else:  # Positivo
-                    if data.get('is_withdrawal'):
-                        colors.append(self.colors['withdrawal'])
-                    elif data.get('is_reinvestment'):
-                        colors.append(self.colors['reinvestment'])
-                    else:
-                        colors.append(self.colors['positive'])
-            
-            # Crear barras con mejor proporción
-            bar_width = 0.6
-            bars = ax.bar(x_positions, amounts, bar_width, color=colors, 
-                         alpha=0.8, edgecolor='white', linewidth=1.5)
-            
-            # Configurar el gráfico
-            ax.set_xlabel(tr('days_of_week_label'), fontsize=12, fontweight='bold', color=self.colors['text'])
-            ax.set_ylabel(tr('amount_axis_label'), fontsize=12, fontweight='bold', color=self.colors['text'])
-            # Título sin emoji para evitar advertencias de fuente
-            weekly_total = sum(amounts)
-            ax.set_title(tr('weekly_performance_title'), fontsize=16, fontweight='bold', 
-                        color=self.colors['text'], pad=16)
-            
-            # Configurar ejes
-            ax.set_xticks(x_positions)
-            ax.set_xticklabels([d['day'] for d in daily_data], fontsize=10, color=self.colors['text'])
-            
-            # Configurar grid
-            ax.grid(True, axis='y', alpha=0.35, color=self.colors['grid'], linestyle='-', linewidth=0.8)
-            ax.set_axisbelow(True)
-            
-            # Configurar línea base en cero
-            ax.axhline(y=0, color=self.colors['text'], linewidth=1, alpha=0.5)
-            
-            # Añadir etiquetas de valores con mejor posicionamiento
-            for i, (bar, data) in enumerate(zip(bars, daily_data)):
-                height = bar.get_height()
-                
-                if height != 0:  # Solo mostrar etiquetas para barras con valor
-                    # Determinar posición de la etiqueta
-                    if height > 0:
-                        y_pos = height + (max(amounts + [1]) * 0.02)  # margen por encima
-                        va = 'bottom'
-                    else:
-                        y_pos = height - (max(abs(np.array(amounts)) + 1) * 0.02)  # margen por debajo
-                        va = 'top'
-                    
-                    # Formatear el valor
-                    value_text = f'${height:.0f}'
-                    
-                    # Añadir etiqueta
-                    bbox_face = '#1e1e1e' if self.is_dark else 'white'
-                    bbox_edge = '#2a2a2a' if self.is_dark else 'none'
-                    ax.text(bar.get_x() + bar.get_width()/2., y_pos, value_text,
-                           ha='center', va=va, fontsize=9, fontweight='bold',
-                           color=self.colors['text'], 
-                           bbox=dict(boxstyle='round,pad=0.3', facecolor=bbox_face, 
-                                   alpha=0.85, edgecolor=bbox_edge))
-
-            # Añadir línea de promedio semanal
-            if base_amounts:
-                avg = np.mean(base_amounts)
-                ax.axhline(avg, color=self.colors['avg_line'], linestyle='--', linewidth=1.5, alpha=0.8)
-                ax.text(0.99, 0.02, f"{tr('average_label')} ${avg:.2f}", transform=ax.transAxes,
-                        ha='right', va='bottom', fontsize=9, color=self.colors['avg_line'],
-                        bbox=dict(boxstyle='round,pad=0.25', facecolor='white', alpha=0.7, edgecolor='none'))
-            
-            # Ajustar límites del eje Y para dar espacio a las etiquetas
-            y_min, y_max = ax.get_ylim()
-            y_range = y_max - y_min
-            
-            if y_min < 0:
-                ax.set_ylim(y_min - y_range * 0.1, y_max + y_range * 0.15)
-            else:
-                ax.set_ylim(y_min, y_max + y_range * 0.15)
-            
-            # Añadir leyenda mejorada (opcional y sin solapar barras)
-            if self.legend_visible:
-                legend_elements = [
-                    patches.Patch(color=self.colors['reinvestment'], label=tr('legend_gain_reinvestment')),
-                    patches.Patch(color=self.colors['withdrawal'], label=tr('legend_gain_withdrawal')),
-                    patches.Patch(color=self.colors['negative'], label=tr('legend_loss')),
-                    patches.Patch(color=self.colors['neutral'], label=tr('legend_neutral'))
-                ]
-
-                if self.legend_position == 'outside_right':
-                    # Colocar la leyenda fuera del área del gráfico, a la derecha
-                    ax.legend(handles=legend_elements, loc='upper left', bbox_to_anchor=(1.02, 1),
-                              frameon=True, fancybox=True, shadow=True, fontsize=9, borderaxespad=0.0)
-                    # Reducir el espacio del subplot para dejar sitio a la leyenda a la derecha
-                    try:
-                        self.figure.tight_layout(rect=[0, 0, 0.82, 1])
-                    except Exception:
-                        self.figure.tight_layout()
-                elif self.legend_position == 'upper_center':
-                    ax.legend(handles=legend_elements, loc='upper center', bbox_to_anchor=(0.5, 1.12),
-                              frameon=True, fancybox=True, shadow=True, fontsize=9, ncol=2)
-                else:  # 'upper_right' por defecto
-                    ax.legend(handles=legend_elements, loc='upper right',
-                              frameon=True, fancybox=True, shadow=True, fontsize=9)
-
-            # Subtítulo con total semanal
-            ax.text(0.01, 1.00, f"{tr('total_week')} ${weekly_total:.2f}", transform=ax.transAxes,
-                    ha='left', va='bottom', fontsize=10, color=self.colors['text'])
-            
-            # Mejorar la apariencia general
-            ax.spines['top'].set_visible(False)
-            ax.spines['right'].set_visible(False)
-            ax.spines['left'].set_color(self.colors['text'])
-            ax.spines['bottom'].set_color(self.colors['text'])
-            
-            # Ajustar márgenes
-            try:
-                if self.legend_visible and self.legend_position == 'outside_right':
-                    self.figure.tight_layout(rect=[0, 0, 0.82, 1])
-                else:
-                    self.figure.tight_layout()
-            except Exception:
-                self.figure.tight_layout()
-            
-            # Actualizar canvas
-            self.canvas.draw()
-            
+            self._items = self._collect(data_model)
         except Exception as e:
             print(f"{tr('chart_error_update')}: {e}")
             self.show_error_message(str(e))
-    
-    def show_error_message(self, error_msg):
-        """Mostrar mensaje de error en el gráfico"""
-        self.figure.clear()
-        ax = self.figure.add_subplot(111)
-        
-        ax.text(0.5, 0.5, f"{tr('chart_error_load')}:\n{error_msg}", 
-                ha='center', va='center', transform=ax.transAxes,
-                fontsize=12, color='red', weight='bold')
-        
-        ax.set_xlim(0, 1)
-        ax.set_ylim(0, 1)
-        ax.axis('off')
-        
-        self.canvas.draw()
-    
-    def clear_chart(self):
-        """Limpiar el gráfico"""
-        self.figure.clear()
-        self.canvas.draw()
-    
-    def apply_language(self):
-        """Actualizar idioma del gráfico"""
-        # Si hay datos cargados, regenerar el gráfico con nuevas traducciones
-        if hasattr(self, 'last_data_model') and self.last_data_model:
+            return
+
+        total = sum(i['amount'] for i in self._items if not i['placeholder'])
+        c = self._c()
+        color = c['success'] if total >= 0 else c['danger']
+        self.subtitle_label.setText(
+            f"{tr('total_week')} <span style='color:{color}; font-weight:800'>{format_result(total)}</span>"
+        )
+
+        if animate and self.animations_enabled and self.isVisible():
+            self._anim.stop()
+            self._anim.start()
+        else:
+            self._render(1.0)
+
+    def set_mode(self, mode: str, emit=False):
+        if mode not in ('2d', '3d'):
+            return
+        changed = mode != self.mode
+        self.mode = mode
+        self.mode_buttons[mode].setChecked(True)
+        if changed and self.last_data_model is not None:
+            self._view = None
             self.update_chart(self.last_data_model)
+        if emit and changed:
+            self.mode_changed.emit(mode)
+
+    def set_animations_enabled(self, enabled: bool):
+        self.animations_enabled = bool(enabled)
 
     def set_theme(self, is_dark: bool):
         """Cambiar tema del gráfico"""
         self.is_dark = is_dark
-        if is_dark:
-            self.figure.patch.set_facecolor('#121212')
-            plt.rcParams['text.color'] = '#e0e0e0'
-            plt.rcParams['axes.facecolor'] = '#1e1e1e'
-            plt.rcParams['axes.edgecolor'] = '#e0e0e0'
-            plt.rcParams['axes.labelcolor'] = '#e0e0e0'
-            plt.rcParams['xtick.color'] = '#e0e0e0'
-            plt.rcParams['ytick.color'] = '#e0e0e0'
-            plt.rcParams['grid.color'] = '#3a3a3a'
-        else:
-            self.figure.patch.set_facecolor('white')
-            plt.rcParams['text.color'] = '#2c3e50'
-            plt.rcParams['axes.facecolor'] = 'white'
-            plt.rcParams['axes.edgecolor'] = '#2c3e50'
-            plt.rcParams['axes.labelcolor'] = '#2c3e50'
-            plt.rcParams['xtick.color'] = '#2c3e50'
-            plt.rcParams['ytick.color'] = '#2c3e50'
-            plt.rcParams['grid.color'] = '#ecf0f1'
-        
-        # Actualizar colores según tema
-        if is_dark:
-            self.colors['text'] = '#e0e0e0'
-            self.colors['grid'] = '#3a3a3a'
-        else:
-            self.colors['text'] = '#2c3e50'
-            self.colors['grid'] = '#ecf0f1'
+        if self.last_data_model is not None:
+            self.update_chart(self.last_data_model, animate=False)
 
     def set_legend_visible(self, visible: bool):
-        """Mostrar u ocultar la leyenda y redibujar."""
         self.legend_visible = bool(visible)
-        if hasattr(self, 'last_data_model') and self.last_data_model:
-            self.update_chart(self.last_data_model)
+        if self._items:
+            self._render(1.0)
 
     def set_legend_position(self, position: str):
-        """Cambiar la posición de la leyenda y redibujar.
-        Posiciones soportadas: 'outside_right', 'upper_right', 'upper_center'
-        """
         if position in ('outside_right', 'upper_right', 'upper_center'):
             self.legend_position = position
-            if hasattr(self, 'last_data_model') and self.last_data_model:
-                self.update_chart(self.last_data_model)
+            if self._items:
+                self._render(1.0)
+
+    def apply_language(self):
+        self.title_label.setText(tr('weekly_performance_title'))
+        if self.last_data_model is not None:
+            self.update_chart(self.last_data_model, animate=False)
+
+    def clear_chart(self):
+        self.figure.clear()
+        self.canvas.draw()
+
+    def show_error_message(self, error_msg):
+        self.figure.clear()
+        ax = self.figure.add_subplot(111)
+        ax.text(0.5, 0.5, f"{tr('chart_error_load')}:\n{error_msg}", ha='center', va='center',
+                transform=ax.transAxes, fontsize=12, color=self._c()['danger'], weight='bold')
+        ax.axis('off')
+        self.canvas.draw()
+
+    # ------------------------------------------------------------ datos
+    def _c(self):
+        return ThemeManager.colors(self.is_dark)
+
+    def _collect(self, data_model):
+        c = self._c()
+        items = []
+        model_days = list(getattr(data_model, 'days', []))
+        for i, day in enumerate(model_days):
+            amount = float(data_model.daily_amounts.get(day, 0) or 0)
+            destination = data_model.daily_destinations.get(day, '')
+            info = data_model.data.get(day, {}) if hasattr(data_model, 'data') else {}
+            label = tr(DAY_KEYS[i])[:3] if i < len(DAY_KEYS) else day[:3]
+            if amount < 0:
+                color = c['danger']
+            elif amount == 0:
+                color = c['text_muted']
+            elif destination in REINVESTMENT_NAMES or destination == tr('reinvestment'):
+                color = c['warning']
+            else:
+                color = c['success']
+            items.append({
+                'label': label, 'amount': amount, 'color': color, 'placeholder': False,
+                'pair': info.get('pair', '') or '', 'duration': info.get('duration', '') or '',
+            })
+        # Fin de semana visual (sin operaciones)
+        for key in ('saturday', 'sunday'):
+            if len(items) < 7:
+                items.append({'label': tr(key)[:3], 'amount': 0.0, 'color': c['text_muted'],
+                              'placeholder': True, 'pair': '', 'duration': ''})
+
+        # Índice del día de hoy si la semana cargada es la actual
+        self._today_index = None
+        week_start = getattr(data_model, 'week_start_date', None)
+        if week_start:
+            delta = (datetime.now().date() - week_start).days
+            if 0 <= delta < len(items):
+                self._today_index = delta
+        return items
+
+    def _limits(self):
+        amounts = [i['amount'] for i in self._items]
+        real = [i['amount'] for i in self._items if not i['placeholder']]
+        cum = np.cumsum(real) if real else np.array([0.0])
+        lo = min(0.0, min(amounts), float(cum.min()))
+        hi = max(0.0, max(amounts), float(cum.max()))
+        span = (hi - lo) or 10.0
+        return lo, hi, span, cum
+
+    # ----------------------------------------------------------- render
+    def _render(self, t, intro=False):
+        if not self._items:
+            return
+        try:
+            # Conservar la cámara elegida por el usuario al redibujar en 3D
+            if not intro and self.figure.axes and hasattr(self.figure.axes[0], 'elev'):
+                ax = self.figure.axes[0]
+                self._view = (ax.elev, ax.azim)
+            self.figure.clear()
+            self.figure.patch.set_facecolor(self._c()['surface'])
+            if self.mode == '3d':
+                self._render_3d(t, intro)
+            else:
+                self._render_2d(t)
+            self.canvas.draw_idle()
+        except Exception as e:
+            print(f"{tr('chart_error_update')}: {e}")
+
+    def _legend_handles(self):
+        c = self._c()
+        handles = [
+            patches.Patch(color=c['success'], label=tr('legend_gain_withdrawal')),
+            patches.Patch(color=c['warning'], label=tr('legend_gain_reinvestment')),
+            patches.Patch(color=c['danger'], label=tr('legend_loss')),
+        ]
+        from matplotlib.lines import Line2D
+        handles.append(Line2D([0], [0], color=c['accent2'], lw=2, marker='o', markersize=5,
+                              label=tr('cumulative_label', 'Acumulado')))
+        return handles
+
+    def _draw_legend(self, target, is_fig=False):
+        if not self.legend_visible:
+            return
+        c = self._c()
+        kwargs = dict(handles=self._legend_handles(), frameon=False, fontsize=8,
+                      labelcolor=c['text_secondary'], handlelength=1.2, handleheight=0.8,
+                      columnspacing=1.4)
+        if self.legend_position == 'outside_right' and not is_fig:
+            target.legend(loc='upper left', bbox_to_anchor=(1.01, 1.0), ncol=1, **kwargs)
+        elif self.legend_position == 'upper_center':
+            target.legend(loc='upper center', ncol=4, **kwargs)
+        elif is_fig:
+            target.legend(loc='upper left', ncol=4, bbox_to_anchor=(0.01, 0.99), **kwargs)
+        else:
+            target.legend(loc='upper right', ncol=4, **kwargs)
+
+    # ---- 2D --------------------------------------------------------
+    def _render_2d(self, t):
+        c = self._c()
+        fig = self.figure
+        ax = fig.add_subplot(111)
+        right = 0.84 if (self.legend_visible and self.legend_position == 'outside_right') else 0.985
+        fig.subplots_adjust(left=0.075, right=right, top=0.95, bottom=0.1)
+        ax.set_facecolor(c['surface'])
+
+        items = self._items
+        n = len(items)
+        xs = np.arange(n)
+        lo, hi, span, cum = self._limits()
+        y0 = lo - span * 0.22 if lo < 0 else -span * 0.06
+        y1 = hi + span * 0.34
+        ax.set_xlim(-0.6, n - 0.4)
+        ax.set_ylim(y0, y1)
+        ax.set_autoscale_on(False)
+
+        # Fondo con degradado sutil hacia el acento
+        bg = LinearSegmentedColormap.from_list('bg', [c['surface'], _mix(c['surface'], c['accent'], 0.10)])
+        ax.imshow(np.linspace(0, 1, 256).reshape(-1, 1), extent=[-0.6, n - 0.4, y0, y1],
+                  aspect='auto', cmap=bg, origin='lower', zorder=0, interpolation='bicubic')
+
+        # Día actual resaltado
+        if self._today_index is not None:
+            ax.axvspan(self._today_index - 0.46, self._today_index + 0.46,
+                       color=c['accent'], alpha=0.07, zorder=0.5, lw=0)
+
+        # Proporción de unidades para esquinas redondeadas circulares
+        bbox = ax.get_window_extent()
+        aspect = ((y1 - y0) / max(bbox.height, 1)) / ((n - 0.4 + 0.6) / max(bbox.width, 1))
+        width = 0.56
+        pad = span * 0.04
+
+        for x, item in zip(xs, items):
+            h = item['amount'] * t
+            if item['placeholder'] or item['amount'] == 0:
+                ghost = patches.FancyBboxPatch(
+                    (x - width / 2, -span * 0.012), width, span * 0.024,
+                    boxstyle=f"round,pad=0,rounding_size={width / 2 * 0.25}", mutation_aspect=aspect,
+                    facecolor=_mix(c['surface'], c['text_muted'], 0.35), edgecolor='none', zorder=2)
+                ax.add_patch(ghost)
+                continue
+
+            base, height = (0, h) if h >= 0 else (h, -h)
+            radius = min(0.14, (height / aspect) / 2) if height > 0 else 0
+            box = f"round,pad=0,rounding_size={radius}" if radius > 0.005 else "square,pad=0"
+            color = item['color']
+
+            # Brillo neón (capas difusas detrás de la barra)
+            if self.is_dark:
+                for lw, alpha in ((22, 0.04), (13, 0.07), (6, 0.12)):
+                    ax.add_patch(patches.FancyBboxPatch(
+                        (x - width / 2, base), width, height, boxstyle=box, mutation_aspect=aspect,
+                        facecolor='none', edgecolor=color, linewidth=lw, alpha=alpha, zorder=2,
+                        joinstyle='round'))
+
+            bar = patches.FancyBboxPatch(
+                (x - width / 2, base), width, height, boxstyle=box, mutation_aspect=aspect,
+                facecolor='none', edgecolor=_mix(color, '#ffffff', 0.35), linewidth=0.9, zorder=4)
+            ax.add_patch(bar)
+            # Relleno con degradado recortado a la forma de la barra
+            dark = _mix(color, c['surface'], 0.55)
+            light = _mix(color, '#ffffff', 0.18)
+            cmap = LinearSegmentedColormap.from_list('bar', [dark, color, light])
+            grad = np.linspace(0, 1, 128).reshape(-1, 1)
+            if h < 0:
+                grad = grad[::-1]
+            im = ax.imshow(grad, extent=[x - width / 2, x + width / 2, base, base + height],
+                           aspect='auto', cmap=cmap, origin='lower', zorder=3, interpolation='bicubic')
+            im.set_clip_path(bar)
+
+            # Etiquetas (aparecen al final de la animación)
+            alpha = max(0.0, min(1.0, (t - 0.55) / 0.45))
+            if alpha > 0:
+                stroke = [pe.withStroke(linewidth=3, foreground=c['surface'])]
+                if h >= 0:
+                    ty, va, ty2 = h + pad, 'bottom', h + pad + span * 0.075
+                else:
+                    ty, va, ty2 = h - pad, 'top', h - pad - span * 0.075
+                ax.text(x, ty, format_result(item['amount']), ha='center', va=va, fontsize=10,
+                        fontweight='bold', color=color, alpha=alpha, zorder=6, path_effects=stroke)
+                note = ' · '.join(filter(None, [item['pair'], _short_duration(item['duration'])]))
+                if note:
+                    ax.text(x, ty2, note, ha='center', va=va, fontsize=7.5, color=c['text_secondary'],
+                            alpha=alpha, zorder=6, path_effects=stroke)
+
+        # Curva de P/L acumulado con brillo
+        real_x = xs[:len(cum)]
+        cum_t = cum * t
+        ax.fill_between(real_x, cum_t, 0, color=c['accent2'], alpha=0.06, zorder=1, lw=0)
+        for lw, alpha in ((9, 0.05), (5, 0.12)):
+            ax.plot(real_x, cum_t, color=c['accent2'], lw=lw, alpha=alpha, zorder=5,
+                    solid_capstyle='round')
+        ax.plot(real_x, cum_t, color=c['accent2'], lw=2, zorder=5, marker='o', markersize=6,
+                markerfacecolor=c['surface'], markeredgecolor=c['accent2'], markeredgewidth=2)
+
+        # Promedio diario
+        real = [i['amount'] for i in items if not i['placeholder']]
+        if real:
+            avg = float(np.mean(real))
+            ax.axhline(avg, color=c['accent'], ls=(0, (4, 4)), lw=1.2, alpha=0.7, zorder=1.5)
+            ax.text(n - 0.45, avg, f" {tr('average_label')} {format_result(avg)}", ha='right',
+                    va='bottom', fontsize=8, color=c['accent_hover'], zorder=6,
+                    path_effects=[pe.withStroke(linewidth=3, foreground=c['surface'])])
+        ax.axhline(0, color=c['border_strong'], lw=1, zorder=1.6)
+
+        # Ejes
+        for spine in ax.spines.values():
+            spine.set_visible(False)
+        ax.set_xticks(xs)
+        ax.set_xticklabels([i['label'] for i in items], fontsize=10, fontweight='bold')
+        for lbl, item in zip(ax.get_xticklabels(), items):
+            lbl.set_color(c['text_muted'] if item['placeholder'] else c['text'])
+        ax.tick_params(axis='both', length=0, pad=8)
+        ax.tick_params(axis='y', colors=c['text_muted'], labelsize=8)
+        ax.yaxis.set_major_formatter(FuncFormatter(_axis_money))
+        ax.grid(True, axis='y', color=c['border'], lw=0.8, ls=(0, (1, 3)), alpha=0.9)
+        ax.set_axisbelow(True)
+        self._draw_legend(ax)
+
+    # ---- 3D --------------------------------------------------------
+    def _render_3d(self, t, intro):
+        c = self._c()
+        fig = self.figure
+        ax = fig.add_subplot(111, projection='3d')
+        fig.subplots_adjust(left=-0.03, right=1.0, top=1.1, bottom=-0.08)
+        ax.set_facecolor(c['surface'])
+
+        items = self._items
+        n = len(items)
+        xs = np.arange(n)
+        lo, hi, span, cum = self._limits()
+        z0 = lo - span * 0.1 if lo < 0 else 0
+        z1 = hi + span * 0.25
+
+        # Paneles transparentes y rejilla sutil
+        grid_rgba = to_rgba(c['border_strong'], 0.6)
+        for axis in (ax.xaxis, ax.yaxis, ax.zaxis):
+            axis.set_pane_color(to_rgba(c['surface'], 0.0))
+            axis.pane.set_edgecolor(to_rgba(c['border'], 0.8))
+            try:
+                axis._axinfo['grid'].update(color=grid_rgba, linewidth=0.5, linestyle=':')
+                axis._axinfo['axisline']['color'] = to_rgba(c['border'], 0.0)
+            except Exception:
+                pass
+        ax.zaxis.set_pane_color(to_rgba(c['accent'], 0.035))
+
+        # Suelo luminoso en z=0
+        gx, gy = np.meshgrid(np.linspace(-0.7, n - 0.3, 2), np.linspace(-0.7, 1.1, 2))
+        ax.plot_surface(gx, gy, np.zeros_like(gx), color=to_rgba(c['accent'], 0.10 if self.is_dark else 0.06),
+                        shade=False, linewidth=0, zorder=0)
+
+        dx = dy = 0.56
+        for x, item in zip(xs, items):
+            h = item['amount'] * t
+            if item['placeholder'] or item['amount'] == 0:
+                ax.bar3d(x - dx / 2, 0, 0, dx, dy, span * 0.012, color=to_rgba(c['text_muted'], 0.25),
+                         shade=False, linewidth=0, zorder=2)
+                continue
+            if abs(h) < 1e-9:
+                continue
+            base = min(0.0, h)
+            ax.bar3d(x - dx / 2, 0, base, dx, dy, abs(h), color=to_rgba(item['color'], 0.93),
+                     shade=True, edgecolor=to_rgba(_mix(item['color'], '#ffffff', 0.4), 0.9),
+                     linewidth=0.5, zorder=3)
+
+            alpha = max(0.0, min(1.0, (t - 0.55) / 0.45))
+            if alpha > 0:
+                top = h + span * 0.05 if h >= 0 else h - span * 0.07
+                ax.text(x, dy / 2, top, format_result(item['amount']), ha='center', va='bottom',
+                        fontsize=9.5, fontweight='bold', color=item['color'], alpha=alpha, zorder=10,
+                        path_effects=[pe.withStroke(linewidth=3, foreground=c['surface'])])
+                note = ' · '.join(filter(None, [item['pair'], _short_duration(item['duration'])]))
+                if note:
+                    ax.text(x, dy / 2, top + span * (0.09 if h >= 0 else -0.09), note, ha='center',
+                            va='bottom', fontsize=7, color=c['text_secondary'], alpha=alpha, zorder=10)
+
+        # Curva acumulada en la fila trasera con líneas de caída
+        cx = xs[:len(cum)]
+        cy = np.full(len(cum), -0.45)
+        cz = cum * t
+        ax.plot(cx, cy, cz, color=c['accent2'], lw=6, alpha=0.12, zorder=4)
+        ax.plot(cx, cy, cz, color=c['accent2'], lw=2, marker='o', markersize=5,
+                markerfacecolor=c['surface'], markeredgecolor=c['accent2'], zorder=5)
+        for x, z in zip(cx, cz):
+            ax.plot([x, x], [-0.45, -0.45], [0, z], color=c['accent2'], lw=0.8, alpha=0.3, ls=':', zorder=4)
+
+        ax.set_xlim(-0.7, n - 0.3)
+        ax.set_ylim(-0.7, 1.1)
+        ax.set_zlim(z0, z1)
+        ax.set_xticks(xs)
+        ax.set_xticklabels([i['label'] for i in items], fontsize=9, fontweight='bold')
+        for lbl, item in zip(ax.get_xticklabels(), items):
+            lbl.set_color(c['text_muted'] if item['placeholder'] else c['text'])
+        ax.set_yticks([])
+        ax.zaxis.set_major_formatter(FuncFormatter(_axis_money))
+        ax.tick_params(axis='z', colors=c['text_muted'], labelsize=8, pad=6)
+        ax.tick_params(axis='x', pad=0)
+        try:
+            ax.set_box_aspect((3.0, 1.0, 1.15), zoom=1.22)
+        except TypeError:
+            ax.set_box_aspect((3.0, 1.0, 1.15))
+
+        # Cámara: barrido cinematográfico en la intro, luego la vista del usuario
+        if intro and t < 1.0:
+            ax.view_init(elev=6 + 16 * t, azim=-110 + 38 * t)
+        elif self._view and not intro:
+            ax.view_init(elev=self._view[0], azim=self._view[1])
+        else:
+            ax.view_init(elev=22, azim=-72)
+        self._draw_legend(fig, is_fig=True)

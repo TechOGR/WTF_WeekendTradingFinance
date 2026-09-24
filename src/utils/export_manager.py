@@ -1,458 +1,431 @@
 """
-🚀 W-T-F Trading Manager - Export Manager
-==========================================
-Módulo para exportar datos de trading a formatos Excel y CSV con estilos profesionales.
+Exportación de semanas de trading a Excel, CSV y JSON.
 
-Autor: W-T-F Trading Manager Team
-Versión: 2.1.0
+Todas las salidas parten del mismo registro normalizado (ver `build_week_record`),
+así los tres formatos muestran exactamente los mismos números.
 """
 
-import pandas as pd
-import os
-from datetime import datetime
-from typing import Dict, List, Optional, Any
-from PyQt5.QtWidgets import QFileDialog, QMessageBox
-from PyQt5.QtCore import QObject, pyqtSignal
+import csv
+import json
+from datetime import datetime, date, timedelta
+from typing import Dict, List
+
 import xlsxwriter
-from .i18n import tr
+
+from src.utils.i18n import tr
+from src.version import APP_NAME, APP_VERSION
+
+DAY_KEYS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
+DAY_ORDER = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo']
+WITHDRAW_RATIO = 0.30
+
+FORMAT_EXCEL, FORMAT_CSV, FORMAT_JSON = 'excel', 'csv', 'json'
+EXTENSIONS = {FORMAT_EXCEL: '.xlsx', FORMAT_CSV: '.csv', FORMAT_JSON: '.json'}
 
 
-class ExportManager(QObject):
-    """Gestor de exportación de datos de trading a múltiples formatos."""
-    
-    export_completed = pyqtSignal(str)  # Señal cuando la exportación termina
-    export_error = pyqtSignal(str)    # Señal cuando hay error
-    
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self.supported_formats = {
-            'Excel (*.xlsx)': self.export_to_excel,
-            'CSV (*.csv)': self.export_to_csv,
-            'JSON (*.json)': self.export_to_json
-        }
-    
-    def export_data(self, data: Dict[str, Any], week_number: int, 
-                   file_path: Optional[str] = None, file_format: Optional[str] = None) -> bool:
-        """
-        Exporta los datos de trading al formato especificado.
-        
-        Args:
-            data: Diccionario con los datos de trading
-            week_number: Número de semana
-            file_path: Ruta del archivo (opcional)
-            file_format: Formato de exportación (opcional)
-            
-        Returns:
-            bool: True si la exportación fue exitosa
-        """
-        try:
-            if not file_path:
-                file_path = self._get_save_path(file_format)
-                if not file_path:
-                    return False
-            
-            # Determinar formato por extensión si no se especifica
-            if not file_format:
-                file_format = self._get_format_from_path(file_path)
-            
-            # Obtener la función de exportación
-            export_func = self._get_export_function(file_format)
-            if not export_func:
-                raise ValueError(f"Formato no soportado: {file_format}")
-            
-            # Ejecutar exportación
-            success = export_func(data, file_path, week_number)
-            
-            if success:
-                self.export_completed.emit(f"Datos exportados exitosamente a: {file_path}")
-                return True
+# ---------------------------------------------------------------- datos
+def _destination_label(value: str) -> str:
+    return {'Retiro Personal': tr('personal_withdrawal'), 'Reinversión': tr('reinvestment')}.get(value, value or '')
+
+
+def _parse_date(value):
+    if isinstance(value, date):
+        return value
+    try:
+        return datetime.fromisoformat(str(value)).date()
+    except (TypeError, ValueError):
+        return None
+
+
+def build_week_record(week: Dict) -> Dict:
+    """Normalizar una semana ({week_start_date, initial_capital, data:{día:{...}}}) con totales calculados."""
+    start = _parse_date(week.get('week_start_date'))
+    initial = float(week.get('initial_capital', 0.0) or 0.0)
+    data = week.get('data', {}) or {}
+    days_present = [d for d in DAY_ORDER if d in data] + [d for d in data if d not in DAY_ORDER]
+
+    days, cumulative = [], 0.0
+    for day in days_present:
+        info = data.get(day) or {}
+        idx = DAY_ORDER.index(day) if day in DAY_ORDER else None
+        amount = float(info.get('amount', 0.0) or 0.0)
+        cumulative += amount
+        days.append({
+            'day': tr(DAY_KEYS[idx]) if idx is not None else day,
+            'date': (start + timedelta(days=idx)) if (start and idx is not None) else None,
+            'pair': info.get('pair', '') or '',
+            'duration': info.get('duration', '') or '',
+            'amount': amount,
+            'cumulative': cumulative,
+            'balance': initial + cumulative,
+            'destination': _destination_label(info.get('destination', '')),
+        })
+
+    total = cumulative
+    traded = [d['amount'] for d in days if abs(d['amount']) > 1e-9]
+    wins = sum(1 for a in traded if a > 0)
+    withdraw = max(0.0, total) * WITHDRAW_RATIO
+    return {
+        'start': start,
+        'end': (start + timedelta(days=len(days) - 1)) if (start and days) else start,
+        'initial': initial,
+        'days': days,
+        'total': total,
+        'percent': (total / initial * 100) if initial else 0.0,
+        'final': initial + total,
+        'wins': wins,
+        'losses': sum(1 for a in traded if a < 0),
+        'traded': len(traded),
+        'win_rate': (wins / len(traded) * 100) if traded else 0.0,
+        'best': max(traded) if traded else 0.0,
+        'worst': min(traded) if traded else 0.0,
+        'withdraw': withdraw,
+        'reinvest': max(0.0, total) - withdraw,
+        'next_capital': max(0.0, initial + total - withdraw),
+    }
+
+
+def collect_weeks(model, all_weeks: bool) -> List[Dict]:
+    """Semana actual del modelo o, si `all_weeks`, todas las de la base de datos (la actual con sus cambios en memoria)."""
+    current = model.to_dict()
+    if not all_weeks:
+        return [build_week_record(current)]
+    weeks = {}
+    db = getattr(model, 'db_manager', None)
+    if db is not None:
+        for row in db.get_all_weeks():
+            week = db.load_week_by_date(row['week_start_date'])
+            if week:
+                weeks[str(week['week_start_date'])] = week
+    weeks[str(current['week_start_date'])] = current
+    return [build_week_record(weeks[k]) for k in sorted(weeks)]
+
+
+def count_saved_weeks(model) -> int:
+    db = getattr(model, 'db_manager', None)
+    dates = {str(r['week_start_date']) for r in (db.get_all_weeks() if db else [])}
+    dates.add(str(model.to_dict()['week_start_date']))
+    return len(dates)
+
+
+def _fmt_date(d):
+    return d.strftime('%d/%m/%Y') if d else ''
+
+
+def _headers():
+    return [tr('week'), tr('day_column'), tr('date_column', 'Fecha'), tr('currency_pair', 'Par de divisas'),
+            tr('session_duration', 'Duración'), tr('result_column', 'Resultado'),
+            tr('cumulative_column', 'Acumulado'), tr('balance_column', 'Balance'), tr('destination_column')]
+
+
+def flat_rows(weeks: List[Dict]) -> List[list]:
+    """Filas planas (una por día) usadas por CSV y por la vista previa."""
+    rows = []
+    for w in weeks:
+        for d in w['days']:
+            rows.append([_fmt_date(w['start']), d['day'], _fmt_date(d['date']), d['pair'], d['duration'],
+                         d['amount'], d['cumulative'], d['balance'], d['destination']])
+    return rows
+
+
+# ---------------------------------------------------------------- CSV
+def export_csv(weeks: List[Dict], path: str, include_summary: bool = True, regional: bool = False) -> None:
+    """CSV UTF-8 con BOM (Excel muestra bien los acentos).
+
+    regional=True usa ';' como separador y coma decimal (Excel en español).
+    """
+    delimiter = ';' if regional else ','
+
+    def num(v):
+        text = f"{v:.2f}"
+        return text.replace('.', ',') if regional else text
+
+    with open(path, 'w', newline='', encoding='utf-8-sig') as f:
+        writer = csv.writer(f, delimiter=delimiter)
+        writer.writerow(_headers())
+        for row in flat_rows(weeks):
+            writer.writerow(row[:5] + [num(v) for v in row[5:8]] + row[8:])
+        if include_summary:
+            writer.writerow([])
+            writer.writerow([tr('week'), tr('capital_initial').rstrip(':'), tr('result_column', 'Resultado'),
+                             tr('performance').rstrip(':'), tr('final_balance', 'Balance final'),
+                             tr('win_rate', 'Tasa de acierto'), tr('withdraw_30', 'Retiro recomendado (30%)'),
+                             tr('next_week_capital', 'Capital próxima semana')])
+            for w in weeks:
+                writer.writerow([_fmt_date(w['start']), num(w['initial']), num(w['total']), num(w['percent']) + '%',
+                                 num(w['final']), f"{w['win_rate']:.0f}%", num(w['withdraw']), num(w['next_capital'])])
+
+
+# ---------------------------------------------------------------- JSON
+def export_json(weeks: List[Dict], path: str, include_summary: bool = True) -> None:
+    def day_json(d):
+        return {'day': d['day'], 'date': d['date'].isoformat() if d['date'] else None, 'pair': d['pair'],
+                'duration': d['duration'], 'amount': round(d['amount'], 2),
+                'cumulative': round(d['cumulative'], 2), 'balance': round(d['balance'], 2),
+                'destination': d['destination']}
+
+    def week_json(w):
+        out = {'week_start_date': w['start'].isoformat() if w['start'] else None,
+               'initial_capital': round(w['initial'], 2), 'days': [day_json(d) for d in w['days']]}
+        if include_summary:
+            out['summary'] = {k: round(w[k], 2) for k in ('total', 'percent', 'final', 'win_rate', 'best', 'worst',
+                                                          'withdraw', 'reinvest', 'next_capital')}
+            out['summary'].update({k: w[k] for k in ('wins', 'losses', 'traded')})
+        return out
+
+    payload = {
+        'metadata': {'application': APP_NAME, 'version': APP_VERSION,
+                     'exported_at': datetime.now().isoformat(timespec='seconds'), 'weeks': len(weeks)},
+        'weeks': [week_json(w) for w in weeks],
+    }
+    with open(path, 'w', encoding='utf-8') as f:
+        json.dump(payload, f, indent=2, ensure_ascii=False)
+
+
+# ---------------------------------------------------------------- Excel
+ACCENT = '#6246EA'
+GREEN = '#0F9F6E'
+RED = '#E11D48'
+
+
+def _safe_sheet(name: str) -> str:
+    for ch in '[]:*?/\\':
+        name = name.replace(ch, '-')
+    return name[:31]
+
+
+def export_excel(weeks: List[Dict], path: str, include_charts: bool = True, include_summary: bool = True) -> None:
+    wb = xlsxwriter.Workbook(path)
+    f = {
+        'title': wb.add_format({'bold': True, 'font_size': 18, 'font_color': ACCENT}),
+        'subtitle': wb.add_format({'italic': True, 'font_color': '#5B6B86'}),
+        'header': wb.add_format({'bold': True, 'font_color': 'white', 'bg_color': ACCENT, 'border': 1,
+                                 'align': 'center', 'valign': 'vcenter'}),
+        'text': wb.add_format({'border': 1, 'border_color': '#DDE4F0'}),
+        'date': wb.add_format({'border': 1, 'border_color': '#DDE4F0', 'num_format': 'dd/mm/yyyy', 'align': 'center'}),
+        'money': wb.add_format({'border': 1, 'border_color': '#DDE4F0', 'num_format': '$#,##0.00;[Red]-$#,##0.00'}),
+        'result': wb.add_format({'border': 1, 'border_color': '#DDE4F0', 'bold': True,
+                                 'num_format': '[Color10]+$#,##0.00;[Red]-$#,##0.00;$0.00'}),
+        'pct': wb.add_format({'border': 1, 'border_color': '#DDE4F0', 'num_format': '+0.00%;[Red]-0.00%'}),
+        'total_label': wb.add_format({'bold': True, 'top': 2, 'bg_color': '#ECE8FF'}),
+        'total_money': wb.add_format({'bold': True, 'top': 2, 'bg_color': '#ECE8FF',
+                                      'num_format': '[Color10]+$#,##0.00;[Red]-$#,##0.00;$0.00'}),
+        'kpi_label': wb.add_format({'bold': True, 'bg_color': '#F4F7FC', 'border': 1, 'border_color': '#DDE4F0'}),
+        'kpi_money': wb.add_format({'bold': True, 'border': 1, 'border_color': '#DDE4F0', 'font_size': 12,
+                                    'num_format': '$#,##0.00;[Red]-$#,##0.00'}),
+        'kpi_signed': wb.add_format({'bold': True, 'border': 1, 'border_color': '#DDE4F0', 'font_size': 12,
+                                     'num_format': '[Color10]+$#,##0.00;[Red]-$#,##0.00;$0.00'}),
+        'kpi_pct': wb.add_format({'bold': True, 'border': 1, 'border_color': '#DDE4F0', 'font_size': 12,
+                                  'num_format': '0.00%'}),
+        'kpi_num': wb.add_format({'bold': True, 'border': 1, 'border_color': '#DDE4F0', 'font_size': 12}),
+    }
+    headers = _headers()[1:]  # la hoja de una semana no necesita la columna "Semana"
+
+    def write_week_sheet(w):
+        name = _safe_sheet(f"{tr('week')} {w['start'].isoformat() if w['start'] else ''}".strip())
+        ws = wb.add_worksheet(name)
+        ws.hide_gridlines(2)
+        ws.write(0, 0, f"{tr('week')} {_fmt_date(w['start'])} → {_fmt_date(w['end'])}", f['title'])
+        ws.write(1, 0, f"{tr('capital_initial').rstrip(':')}: ${w['initial']:,.2f}", f['subtitle'])
+        top = 3
+        for c, h in enumerate(headers):
+            ws.write(top, c, h, f['header'])
+        first = top + 1
+        for i, d in enumerate(w['days']):
+            r = first + i
+            ws.write(r, 0, d['day'], f['text'])
+            if d['date']:
+                ws.write_datetime(r, 1, datetime.combine(d['date'], datetime.min.time()), f['date'])
             else:
-                return False
-                
-        except Exception as e:
-            error_msg = f"Error al exportar datos: {str(e)}"
-            self.export_error.emit(error_msg)
-            return False
-    
-    def _get_save_path(self, suggested_format: Optional[str] = None) -> Optional[str]:
-        """Muestra diálogo para seleccionar ruta de guardado."""
-        
-        # Determinar filtro de formato
-        if suggested_format:
-            filter_text = f"{suggested_format};;All Files (*.*)"
-        else:
-            filter_text = ";;".join(self.supported_formats.keys()) + ";;All Files (*.*)"
-        
-        # Diálogo de guardado
-        file_path, selected_filter = QFileDialog.getSaveFileName(
-            None,
-            "Exportar Datos de Trading",
-            self._get_default_filename(),
-            filter_text
-        )
-        
-        return file_path if file_path else None
-    
-    def _get_default_filename(self) -> str:
-        """Genera nombre de archivo por defecto con fecha y hora."""
-        now = datetime.now()
-        return f"trading_data_{now.strftime('%Y%m%d_%H%M%S')}"
-    
-    def _get_format_from_path(self, file_path: str) -> str:
-        """Determina el formato basado en la extensión del archivo."""
-        ext = os.path.splitext(file_path)[1].lower()
-        format_map = {
-            '.xlsx': 'Excel (*.xlsx)',
-            '.csv': 'CSV (*.csv)', 
-            '.json': 'JSON (*.json)'
-        }
-        return format_map.get(ext, 'Excel (*.xlsx)')
-    
-    def _get_export_function(self, file_format: str):
-        """Obtiene la función de exportación según el formato."""
-        return self.supported_formats.get(file_format)
+                ws.write_blank(r, 1, None, f['date'])
+            ws.write(r, 2, d['pair'], f['text'])
+            ws.write(r, 3, d['duration'], f['text'])
+            ws.write_number(r, 4, d['amount'], f['result'])
+            # Fórmulas: si editas un resultado en Excel, acumulado y balance se recalculan
+            ws.write_formula(r, 5, f"=SUM($E${first + 1}:E{r + 1})", f['money'], d['cumulative'])
+            ws.write_formula(r, 6, f"={w['initial']}+F{r + 1}", f['money'], d['balance'])
+            ws.write(r, 7, d['destination'], f['text'])
+        last = first + len(w['days']) - 1
+        total_row = last + 1
+        ws.write(total_row, 0, tr('total_week').rstrip(':'), f['total_label'])
+        for c in (1, 2, 3, 5, 7):
+            ws.write_blank(total_row, c, None, f['total_label'])
+        ws.write_formula(total_row, 4, f"=SUM(E{first + 1}:E{last + 1})", f['total_money'], w['total'])
+        ws.write_formula(total_row, 6, f"={w['initial']}+E{total_row + 1}", f['total_money'], w['final'])
+        ws.conditional_format(first, 4, last, 4, {'type': 'data_bar', 'bar_color': '#63C384',
+                                                   'bar_negative_color': '#FF5A5A', 'bar_solid': True})
+        ws.set_column(0, 0, 13)
+        ws.set_column(1, 1, 12)
+        ws.set_column(2, 3, 13)
+        ws.set_column(4, 6, 14)
+        ws.set_column(7, 7, 18)
+        ws.freeze_panes(first, 0)
 
-    # ---------------------------------------------------------------------
-    # Normalización de datos de entrada
-    # ---------------------------------------------------------------------
-    def _normalize_daily_data(self, data: Dict[str, Any]) -> Dict[str, Any]:
-        """Normaliza el bloque de datos diarios desde diferentes esquemas."""
-        # Caso 1: ya viene como 'daily_data'
-        if isinstance(data.get('daily_data'), dict):
-            return data.get('daily_data') or {}
-        # Caso 2: viene como 'data' del modelo base/BD
-        if isinstance(data.get('data'), dict):
-            return data.get('data') or {}
-        # Caso 3: viene separado en 'daily_amounts' y 'daily_destinations'
-        amounts = data.get('daily_amounts')
-        dests = data.get('daily_destinations')
-        if isinstance(amounts, dict):
-            daily = {}
-            for day, amount in amounts.items():
-                daily[day] = {
-                    'amount': amount,
-                    'destination': dests.get(day, '') if isinstance(dests, dict) else '',
-                    'type': '',
-                    'comments': ''
-                }
-            return daily
-        return {}
-
-    def _summary_field(self, data: Dict[str, Any], *keys, default: Any = 0) -> Any:
-        """Obtiene un campo de resumen con clave alternativa y valor por defecto."""
-        for k in keys:
-            if k in data:
-                return data[k]
-        return default
-    
-    def export_to_excel(self, data: Dict[str, Any], file_path: str, week_number: int) -> bool:
-        """Exporta datos a formato Excel con estilo profesional y gráficos."""
-        try:
-            # Crear workbook de xlsxwriter
-            workbook = xlsxwriter.Workbook(file_path)
-
-            # Paleta y formatos
-            header_format = workbook.add_format({
-                'bold': True,
-                'font_color': 'white',
-                'bg_color': '#1F4E79',  # azul profundo
-                'border': 1,
-                'align': 'center',
-                'valign': 'vcenter'
+        if include_charts and w['days']:
+            col = wb.add_chart({'type': 'column'})
+            col.add_series({
+                'name': tr('result_column', 'Resultado'),
+                'categories': [name, first, 0, last, 0],
+                'values': [name, first, 4, last, 4],
+                'points': [{'fill': {'color': GREEN if d['amount'] >= 0 else RED}} for d in w['days']],
+                'data_labels': {'value': True, 'num_format': '$#,##0.00'},
+                'gap': 80,
             })
+            col.set_title({'name': tr('daily_breakdown', 'Desglose por día')})
+            col.set_legend({'none': True})
+            col.set_y_axis({'num_format': '$#,##0', 'major_gridlines': {'visible': True,
+                                                                         'line': {'color': '#E5E9F2'}}})
+            col.set_chartarea({'border': {'none': True}})
+            ws.insert_chart(top, 9, col, {'x_scale': 1.15, 'y_scale': 1.0})
 
-            money_format = workbook.add_format({
-                'num_format': '$#,##0.00',
-                'border': 1,
-                'align': 'right'
+            line = wb.add_chart({'type': 'line'})
+            line.add_series({
+                'name': tr('balance_column', 'Balance'),
+                'categories': [name, first, 0, last, 0],
+                'values': [name, first, 6, last, 6],
+                'line': {'color': ACCENT, 'width': 2.5},
+                'marker': {'type': 'circle', 'size': 7, 'fill': {'color': ACCENT}, 'border': {'color': ACCENT}},
             })
-            green_money_format = workbook.add_format({
-                'num_format': '$#,##0.00',
-                'border': 1,
-                'align': 'right',
-                'font_color': '#1E8449'  # verde
+            line.set_title({'name': tr('balance_evolution', 'Evolución del balance')})
+            line.set_legend({'none': True})
+            line.set_y_axis({'num_format': '$#,##0'})
+            line.set_chartarea({'border': {'none': True}})
+            ws.insert_chart(top + 16, 9, line, {'x_scale': 1.15, 'y_scale': 1.0})
+        return ws, name, first, last
+
+    def write_summary(ws, w, row, col):
+        """Bloque de KPIs a la derecha/abajo de la tabla de una semana."""
+        items = [
+            (tr('capital_initial').rstrip(':'), w['initial'], 'kpi_money'),
+            (tr('total_week').rstrip(':'), w['total'], 'kpi_signed'),
+            (tr('performance').rstrip(':'), w['percent'] / 100, 'kpi_pct'),
+            (tr('final_balance', 'Balance final'), w['final'], 'kpi_money'),
+            (tr('win_rate', 'Tasa de acierto'), w['win_rate'] / 100, 'kpi_pct'),
+            (tr('best_day', 'Mejor día'), w['best'], 'kpi_signed'),
+            (tr('worst_day', 'Peor día'), w['worst'], 'kpi_signed'),
+            (tr('withdraw_30', 'Retiro recomendado (30%)'), w['withdraw'], 'kpi_money'),
+            (tr('suggested_reinvestment', 'Reinversión sugerida'), w['reinvest'], 'kpi_money'),
+            (tr('next_week_capital', 'Capital próxima semana'), w['next_capital'], 'kpi_money'),
+        ]
+        ws.write(row, col, tr('weekly_summary_panel'), f['title'])
+        for i, (label, value, fmt) in enumerate(items):
+            ws.write(row + 2 + i, col, label, f['kpi_label'])
+            ws.write_number(row + 2 + i, col + 1, value, f[fmt])
+        ws.set_column(col, col, 28)
+        ws.set_column(col + 1, col + 1, 16)
+
+    if len(weeks) == 1:
+        w = weeks[0]
+        ws, name, first, last = write_week_sheet(w)
+        if include_summary:
+            write_summary(ws, w, last + 4, 0)
+            ws.set_column(0, 0, 28)
+    else:
+        # Historial: una fila por semana + gráfico de evolución
+        hs = wb.add_worksheet(_safe_sheet(tr('history', 'Historial')))
+        hs.hide_gridlines(2)
+        hs.write(0, 0, f"{APP_NAME} · {tr('history', 'Historial')}", f['title'])
+        hs.write(1, 0, f"{len(weeks)} {tr('weeks_word', 'semanas')} · "
+                       f"{_fmt_date(weeks[0]['start'])} → {_fmt_date(weeks[-1]['end'])}", f['subtitle'])
+        h_headers = [tr('week'), tr('capital_initial').rstrip(':'), tr('result_column', 'Resultado'),
+                     tr('performance').rstrip(':'), tr('final_balance', 'Balance final'), tr('win_rate', 'Tasa de acierto'),
+                     tr('withdraw_30', 'Retiro recomendado (30%)')]
+        top = 3
+        for c, h in enumerate(h_headers):
+            hs.write(top, c, h, f['header'])
+        for i, w in enumerate(weeks):
+            r = top + 1 + i
+            if w['start']:
+                hs.write_datetime(r, 0, datetime.combine(w['start'], datetime.min.time()), f['date'])
+            else:
+                hs.write_blank(r, 0, None, f['date'])
+            hs.write_number(r, 1, w['initial'], f['money'])
+            hs.write_number(r, 2, w['total'], f['result'])
+            hs.write_formula(r, 3, f"=IF(B{r + 1}=0,0,C{r + 1}/B{r + 1})", f['pct'], w['percent'] / 100)
+            hs.write_formula(r, 4, f"=B{r + 1}+C{r + 1}", f['money'], w['final'])
+            hs.write_number(r, 5, w['win_rate'] / 100, f['pct'])
+            hs.write_formula(r, 6, f"=MAX(0,C{r + 1})*{WITHDRAW_RATIO}", f['money'], w['withdraw'])
+        first, last = top + 1, top + len(weeks)
+        total_row = last + 1
+        hs.write(total_row, 0, tr('total_week').rstrip(':').split()[0] if tr('total_week').rstrip(':') else 'Total', f['total_label'])
+        hs.write_blank(total_row, 1, None, f['total_label'])
+        hs.write_formula(total_row, 2, f"=SUM(C{first + 1}:C{last + 1})", f['total_money'],
+                         sum(w['total'] for w in weeks))
+        for c in (3, 4, 5):
+            hs.write_blank(total_row, c, None, f['total_label'])
+        hs.write_formula(total_row, 6, f"=SUM(G{first + 1}:G{last + 1})", f['total_money'],
+                         sum(w['withdraw'] for w in weeks))
+        hs.conditional_format(first, 2, last, 2, {'type': 'data_bar', 'bar_color': '#63C384',
+                                                   'bar_negative_color': '#FF5A5A', 'bar_solid': True})
+        hs.set_column(0, 0, 13)
+        hs.set_column(1, 6, 17)
+        hs.freeze_panes(first, 0)
+        hist_name = hs.get_name()
+        if include_charts:
+            col = wb.add_chart({'type': 'column'})
+            col.add_series({
+                'name': tr('result_column', 'Resultado'),
+                'categories': [hist_name, first, 0, last, 0],
+                'values': [hist_name, first, 2, last, 2],
+                'points': [{'fill': {'color': GREEN if w['total'] >= 0 else RED}} for w in weeks],
             })
-            red_money_format = workbook.add_format({
-                'num_format': '$#,##0.00',
-                'border': 1,
-                'align': 'right',
-                'font_color': '#C0392B'  # rojo
+            line = wb.add_chart({'type': 'line'})
+            line.add_series({
+                'name': tr('final_balance', 'Balance final'),
+                'categories': [hist_name, first, 0, last, 0],
+                'values': [hist_name, first, 4, last, 4],
+                'y2_axis': True,
+                'line': {'color': ACCENT, 'width': 2.5},
+                'marker': {'type': 'circle', 'size': 6, 'fill': {'color': ACCENT}, 'border': {'color': ACCENT}},
             })
+            col.combine(line)
+            col.set_title({'name': tr('weekly_evolution', 'Evolución semanal')})
+            col.set_legend({'position': 'bottom'})
+            col.set_y_axis({'num_format': '$#,##0'})
+            line.set_y2_axis({'num_format': '$#,##0'})
+            col.set_chartarea({'border': {'none': True}})
+            hs.insert_chart(top, 8, col, {'x_scale': 1.4, 'y_scale': 1.2})
 
-            percentage_format = workbook.add_format({
-                'num_format': '0.00%',
-                'border': 1,
-                'align': 'right'
-            })
+        # Detalle de todos los días
+        ds = wb.add_worksheet(_safe_sheet(tr('detail', 'Detalle')))
+        all_headers = _headers()
+        for c, h in enumerate(all_headers):
+            ds.write(0, c, h, f['header'])
+        r = 1
+        for w in weeks:
+            for d in w['days']:
+                ds.write(r, 0, _fmt_date(w['start']), f['text'])
+                ds.write(r, 1, d['day'], f['text'])
+                ds.write(r, 2, _fmt_date(d['date']), f['text'])
+                ds.write(r, 3, d['pair'], f['text'])
+                ds.write(r, 4, d['duration'], f['text'])
+                ds.write_number(r, 5, d['amount'], f['result'])
+                ds.write_number(r, 6, d['cumulative'], f['money'])
+                ds.write_number(r, 7, d['balance'], f['money'])
+                ds.write(r, 8, d['destination'], f['text'])
+                r += 1
+        ds.autofilter(0, 0, max(1, r - 1), len(all_headers) - 1)
+        ds.freeze_panes(1, 0)
+        ds.set_column(0, 8, 14)
 
-            date_format = workbook.add_format({
-                'num_format': 'mm/dd/yyyy',
-                'border': 1,
-                'align': 'center'
-            })
+        if include_summary:
+            # Una hoja por semana con sus KPIs (las más recientes primero)
+            for w in reversed(weeks):
+                ws, _, _, last = write_week_sheet(w)
+                write_summary(ws, w, last + 4, 0)
+                ws.set_column(0, 0, 28)
 
-            border_format = workbook.add_format({'border': 1})
-
-            kpi_title = workbook.add_format({'bold': True, 'font_size': 16})
-            kpi_label = workbook.add_format({'bold': True, 'bg_color': '#F2F2F2', 'border': 1})
-            kpi_value_currency = workbook.add_format({'num_format': '$#,##0.00', 'border': 1, 'bold': True})
-            kpi_value_number = workbook.add_format({'border': 1, 'bold': True})
-            kpi_value_percent = workbook.add_format({'num_format': '0.00%', 'border': 1, 'bold': True})
-
-            # Hoja de datos diarios
-            sheet_name = f"{tr('week')} {week_number}"
-            worksheet = workbook.add_worksheet(sheet_name)
-
-            # Encabezados
-            headers = [
-                tr('day_column'),
-                'Fecha' if tr('monday') == 'Lunes' else 'Date',
-                tr('amount_column'),
-                tr('destination_column'),
-                tr('type_column') if tr('type_column', None) != 'type_column' else ('Tipo' if tr('monday') == 'Lunes' else 'Type'),
-                tr('comments_column') if tr('comments_column', None) != 'comments_column' else ('Comentarios' if tr('monday') == 'Lunes' else 'Comments')
-            ]
-            for col, header in enumerate(headers):
-                worksheet.write(0, col, header, header_format)
-
-            # Datos diarios
-            row = 1
-            daily_data = self._normalize_daily_data(data)
-            for day, day_data in daily_data.items():
-                worksheet.write(row, 0, day.capitalize(), border_format)
-                worksheet.write(row, 1, day_data.get('date', ''), date_format)
-                amount = day_data.get('amount', 0)
-                if amount > 0:
-                    worksheet.write(row, 2, amount, green_money_format)
-                elif amount < 0:
-                    worksheet.write(row, 2, amount, red_money_format)
-                else:
-                    worksheet.write(row, 2, '', border_format)
-                worksheet.write(row, 3, day_data.get('destination', ''), border_format)
-                worksheet.write(row, 4, day_data.get('type', ''), border_format)
-                worksheet.write(row, 5, day_data.get('comments', ''), border_format)
-                row += 1
-
-            last_row = row - 1
-
-            # Tabla y estilos de la sección diaria
-            worksheet.add_table(0, 0, last_row, 5, {
-                'style': 'Table Style Medium 9',
-                'columns': [{'header': h} for h in headers]
-            })
-            worksheet.freeze_panes(1, 0)
-            column_widths = [12, 15, 15, 18, 14, 28]
-            for col, width in enumerate(column_widths):
-                worksheet.set_column(col, col, width)
-
-            # Formato condicional en montos
-            worksheet.conditional_format(1, 2, last_row, 2, {
-                'type': 'cell', 'criteria': '>', 'value': 0, 'format': green_money_format
-            })
-            worksheet.conditional_format(1, 2, last_row, 2, {
-                'type': 'cell', 'criteria': '<', 'value': 0, 'format': red_money_format
-            })
-
-            # Hoja de resumen (KPIs)
-            summary_sheet = workbook.add_worksheet('Resumen' if tr('monday') == 'Lunes' else 'Summary')
-            summary_sheet.write(0, 0, ('Resumen Semanal' if tr('monday') == 'Lunes' else 'Weekly Summary'), kpi_title)
-
-            # KPI labels
-            summary_sheet.write(2, 0, 'Capital Inicial', kpi_label)
-            summary_sheet.write(3, 0, 'Total Semanal', kpi_label)
-            summary_sheet.write(4, 0, 'Rendimiento %', kpi_label)
-            summary_sheet.write(5, 0, 'Días Positivos', kpi_label)
-            summary_sheet.write(6, 0, 'Días Negativos', kpi_label)
-
-            # KPI values (con fórmulas donde aplica)
-            initial_capital = self._summary_field(data, 'initial_capital', default=0)
-            summary_sheet.write(2, 1, initial_capital, kpi_value_currency)
-            # SUM de montos en hoja diaria
-            summary_sheet.write_formula(3, 1, f"=SUM('{sheet_name}'!C2:C{last_row})", kpi_value_currency)
-            # Rendimiento = Total / Capital
-            summary_sheet.write_formula(4, 1, f"=IF(B3>0,B4/B3,0)", kpi_value_percent)
-            summary_sheet.write_formula(5, 1, f"=COUNTIF('{sheet_name}'!C2:C{last_row},\">0\")", kpi_value_number)
-            summary_sheet.write_formula(6, 1, f"=COUNTIF('{sheet_name}'!C2:C{last_row},\"<0\")", kpi_value_number)
-            summary_sheet.set_column(0, 1, 22)
-
-            # Totales por destino (para gráfico de torta)
-            totals_by_destination = {}
-            for r in range(1, last_row + 1):
-                # Leer desde la hoja diaria por consistencia
-                # Nota: No tenemos acceso directo a valores ya escritos; usamos daily_data
-                pass
-            # Construir desde daily_data
-            for _, dd in daily_data.items():
-                dest = dd.get('destination', '') or 'Sin destino'
-                amt = dd.get('amount', 0) or 0
-                totals_by_destination[dest] = totals_by_destination.get(dest, 0) + (amt or 0)
-
-            dest_start_row = 9
-            summary_sheet.write(dest_start_row, 0, ('Totales por destino' if tr('monday') == 'Lunes' else 'Totals by destination'), kpi_label)
-            dr = dest_start_row + 1
-            for dest, total in totals_by_destination.items():
-                summary_sheet.write(dr, 0, dest, border_format)
-                summary_sheet.write(dr, 1, total, money_format)
-                dr += 1
-
-            # Hoja de gráficos
-            chart_sheet = workbook.add_worksheet('Gráficos' if tr('monday') == 'Lunes' else 'Charts')
-            chart_sheet.write(0, 0, tr('day_column'), header_format)
-            chart_sheet.write(0, 1, tr('amount_column'), header_format)
-            chart_sheet.write(0, 2, ('Acumulado' if tr('monday') == 'Lunes' else 'Cumulative'), header_format)
-
-            # Replicar nombres de días y vincular montos a la hoja diaria
-            chart_row = 1
-            for r in range(2, last_row + 1):
-                chart_sheet.write_formula(chart_row, 0, f"='{sheet_name}'!A{r}", border_format)
-                chart_sheet.write_formula(chart_row, 1, f"='{sheet_name}'!C{r}", money_format)
-                # Acumulado sobre la columna B del propio sheet
-                if chart_row == 1:
-                    chart_sheet.write_formula(chart_row, 2, "=B2", money_format)
-                else:
-                    chart_sheet.write_formula(chart_row, 2, f"=SUM(B$2:B{chart_row+1})", money_format)
-                chart_row += 1
-
-            # Gráfico de columnas (montos diarios)
-            column_chart = workbook.add_chart({'type': 'column'})
-            column_chart.add_series({
-                'name': ('Montos por día' if tr('monday') == 'Lunes' else 'Daily amounts'),
-                'categories': [chart_sheet.get_name(), 1, 0, chart_row - 1, 0],
-                'values': [chart_sheet.get_name(), 1, 1, chart_row - 1, 1],
-            })
-            column_chart.set_title({'name': ('Desempeño semanal' if tr('monday') == 'Lunes' else 'Weekly Performance')})
-            column_chart.set_x_axis({'name': ('Días' if tr('monday') == 'Lunes' else 'Days')})
-            column_chart.set_y_axis({'name': ('Monto ($)' if tr('monday') == 'Lunes' else 'Amount ($)')})
-            chart_sheet.insert_chart('E2', column_chart)
-
-            # Gráfico de línea (acumulado)
-            line_chart = workbook.add_chart({'type': 'line'})
-            line_chart.add_series({
-                'name': ('Acumulado' if tr('monday') == 'Lunes' else 'Cumulative'),
-                'categories': [chart_sheet.get_name(), 1, 0, chart_row - 1, 0],
-                'values': [chart_sheet.get_name(), 1, 2, chart_row - 1, 2],
-            })
-            line_chart.set_title({'name': ('Saldo acumulado' if tr('monday') == 'Lunes' else 'Cumulative balance')})
-            chart_sheet.insert_chart('E18', line_chart)
-
-            # Gráfico de torta (por destino)
-            if totals_by_destination:
-                pie_chart = workbook.add_chart({'type': 'pie'})
-                # Rango en hoja de resumen
-                start = dest_start_row + 1
-                end = dr - 1
-                pie_chart.add_series({
-                    'name': ('Distribución por destino' if tr('monday') == 'Lunes' else 'Distribution by destination'),
-                    'categories': [summary_sheet.get_name(), start, 0, end, 0],
-                    'values': [summary_sheet.get_name(), start, 1, end, 1],
-                })
-                pie_chart.set_title({'name': ('Destinos' if tr('monday') == 'Lunes' else 'Destinations')})
-                chart_sheet.insert_chart('E34', pie_chart)
-
-            workbook.close()
-            return True
-        
-        except Exception as e:
-            self.export_error.emit(f"Error al exportar a Excel: {str(e)}")
-            return False
-    
-    def export_to_csv(self, data: Dict[str, Any], file_path: str, week_number: int) -> bool:
-        """Exporta datos a formato CSV simple."""
-        try:
-            daily_data = self._normalize_daily_data(data)
-            
-            # Encabezados y filas diarias consistentes
-            headers = ['Semana', 'Día', 'Fecha', 'Monto', 'Destino', 'Tipo', 'Comentarios']
-            rows_daily = []
-            for day, day_data in daily_data.items():
-                rows_daily.append([
-                    week_number,
-                    day.capitalize(),
-                    day_data.get('date', ''),
-                    day_data.get('amount', 0),
-                    day_data.get('destination', ''),
-                    day_data.get('type', ''),
-                    day_data.get('comments', '')
-                ])
-            
-            # Exportar sección diaria con DataFrame
-            df_daily = pd.DataFrame(rows_daily, columns=headers)
-            df_daily.to_csv(file_path, index=False, encoding='utf-8')
-            
-            # Agregar sección de resumen como texto para evitar discrepancias de columnas
-            with open(file_path, 'a', encoding='utf-8') as f:
-                f.write('\n')
-                f.write('RESUMEN SEMANAL\n')
-                f.write(f'Capital Inicial,{data.get("initial_capital", 0)}\n')
-                f.write(f'Total Semanal,{data.get("weekly_total", 0)}\n')
-                f.write(f'Rendimiento %,{data.get("performance_percentage", 0)}\n')
-                f.write(f'Días Positivos,{data.get("positive_days", 0)}\n')
-                f.write(f'Días Negativos,{data.get("negative_days", 0)}\n')
-                f.write(f'Total Retiros,{data.get("total_withdrawals", 0)}\n')
-                f.write(f'Total Reinvertido,{data.get("total_reinvestment", 0)}\n')
-            
-            return True
-            
-        except Exception as e:
-            self.export_error.emit(f"Error al exportar a CSV: {str(e)}")
-            return False
-    
-    def export_to_json(self, data: Dict[str, Any], file_path: str, week_number: int) -> bool:
-        """Exporta datos a formato JSON con formato bonito."""
-        try:
-            # Agregar metadata
-            export_data = {
-                'metadata': {
-                    'version': '2.1.0',
-                    'export_date': datetime.now().isoformat(),
-                    'week_number': week_number,
-                    'application': 'W-T-F Trading Manager'
-                },
-                'data': data
-            }
-            
-            # Exportar JSON con formato
-            with open(file_path, 'w', encoding='utf-8') as f:
-                import json
-                json.dump(export_data, f, indent=2, ensure_ascii=False)
-            
-            return True
-            
-        except Exception as e:
-            self.export_error.emit(f"{tr('export_error')}: {str(e)}")
-            return False
-    
-    def show_export_dialog(self, data: Dict[str, Any], week_number: int) -> bool:
-        """Muestra el diálogo de exportación y ejecuta la exportación."""
-        try:
-            file_path = self._get_save_path()
-            if not file_path:
-                return False
-            
-            return self.export_data(data, week_number, file_path)
-            
-        except Exception as e:
-            self.export_error.emit(f"{tr('export_error')}: {str(e)}")
-            return False
+    wb.set_properties({'title': f"{APP_NAME} export", 'author': APP_NAME,
+                       'comments': f"{APP_NAME} v{APP_VERSION}"})
+    wb.close()
 
 
-# =============================================================================
-# 🎯 FUNCIONES DE UTILIDAD RÁPIDA
-# =============================================================================
-
-def quick_export_to_excel(data: Dict[str, Any], week_number: int, file_path: str) -> bool:
-    """Exportación rápida a Excel sin interfaz gráfica."""
-    exporter = ExportManager()
-    return exporter.export_to_excel(data, file_path, week_number)
-
-
-def quick_export_to_csv(data: Dict[str, Any], week_number: int, file_path: str) -> bool:
-    """Exportación rápida a CSV sin interfaz gráfica."""
-    exporter = ExportManager()
-    return exporter.export_to_csv(data, file_path, week_number)
-
-
-def export_with_dialog(data: Dict[str, Any], week_number: int) -> bool:
-    """Exportación con diálogo de archivo."""
-    exporter = ExportManager()
-    return exporter.show_export_dialog(data, week_number)
+def export_weeks(weeks: List[Dict], path: str, fmt: str, include_charts=True, include_summary=True,
+                 csv_regional=False) -> None:
+    """Punto de entrada único. Lanza excepción si algo falla."""
+    if fmt == FORMAT_EXCEL:
+        export_excel(weeks, path, include_charts, include_summary)
+    elif fmt == FORMAT_CSV:
+        export_csv(weeks, path, include_summary, csv_regional)
+    else:
+        export_json(weeks, path, include_summary)

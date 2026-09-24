@@ -475,3 +475,5 @@ InstallerSetup
 # git clean -X -f (cuidado: esto elimina archivos!)
 
 # =============================================================================
+# Secretos locales (API key de Pollinations)
+.env
