@@ -477,3 +477,10 @@ InstallerSetup
 # =============================================================================
 # Secretos locales (API key de Pollinations)
 .env
+
+# Imágenes de la app (logo, iconos de redes sociales e imagen de referencia):
+# se versionan aunque arriba se ignoren *.png / *.jpg
+!src/images/**/*.png
+!src/images/**/*.jpg
+# Copia duplicada que la app no usa
+src/images/ref_img/
