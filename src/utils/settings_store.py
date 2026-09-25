@@ -109,6 +109,7 @@ DEFAULTS = {
     'export_summary': '1',
     'export_csv_regional': '1',
     'export_open_after': '0',
+    'import_dir': '',  # última carpeta usada al importar
     'dark_mode': '1',
     'language': 'es',
     'chart_mode': '3d',

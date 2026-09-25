@@ -23,6 +23,8 @@ from src.ui.enhanced_chart_widget import EnhancedChartWidget
 from src.ui.capital_dialog import CapitalDialog
 from src.ui.weekly_summary_dialog import WeeklySummaryDialog
 from src.ui.export_dialog import show_export_dialog
+from src.ui.import_dialog import ImportDialog
+from src.utils.import_manager import SUPPORTED_EXT
 from src.models.trading_model_with_db import TradingDataModelWithDB
 from src.models.ai_analyzer import AIAnalyzer
 from src.styles.themes import ThemeManager
@@ -46,6 +48,7 @@ class MainWindow(QMainWindow):
         """Configurar la interfaz de usuario principal"""
         self.setWindowTitle(tr("app_title"))
         self.setGeometry(80, 60, 1440, 960)
+        self.setAcceptDrops(True)
 
         # Establecer icono de la aplicación con ruta absoluta base + src/images
         self.logo_path = None
@@ -202,6 +205,12 @@ class MainWindow(QMainWindow):
         self.image_btn.clicked.connect(lambda: self.open_result_image())
         layout.addWidget(self.image_btn)
 
+        self.import_btn = QPushButton('📥  ' + tr('import_analyze', 'Importar'))
+        self.import_btn.setToolTip(tr('import_title', 'Importar y analizar operaciones') + '  (Ctrl+I)')
+        self.import_btn.setCursor(Qt.PointingHandCursor)
+        self.import_btn.clicked.connect(lambda: self.open_import())
+        layout.addWidget(self.import_btn)
+
         self.save_btn = QPushButton('💾')
         self.save_btn.setToolTip(tr('save_week') + '  (Ctrl+S)')
         self.save_btn.clicked.connect(self.save_week)
@@ -227,6 +236,7 @@ class MainWindow(QMainWindow):
             ('Ctrl+G', lambda: self.open_result_image()),
             ('Ctrl+,', lambda: self.open_settings()),
             ('Ctrl+E', lambda: self.export_data()),
+            ('Ctrl+I', lambda: self.open_import()),
             ('Ctrl+D', lambda: self.set_dark_mode(not self.dark_mode)),
             (QKeySequence.Quit, self.close),
         ):
@@ -240,6 +250,23 @@ class MainWindow(QMainWindow):
         # Refrescar valores por defecto que usa la tabla
         self.table_widget.default_pair = self.settings.get('default_pair')
         self.table_widget.default_duration = self.settings.get('default_duration')
+
+    def open_import(self, paths=None):
+        """Ventana para importar Excel/CSV/JSON y analizar las operaciones con gráficos."""
+        dialog = ImportDialog(self.data_model, self.settings, self.dark_mode, self, paths)
+        dialog.week_updated.connect(lambda: self.on_day_updated(None))
+        dialog.exec_()
+
+    # Soltar archivos sobre la ventana principal abre el análisis
+    def dragEnterEvent(self, event):
+        if event.mimeData().hasUrls() and any(u.toLocalFile().lower().endswith(SUPPORTED_EXT)
+                                              for u in event.mimeData().urls()):
+            event.acceptProposedAction()
+
+    def dropEvent(self, event):
+        paths = [u.toLocalFile() for u in event.mimeData().urls() if u.toLocalFile().lower().endswith(SUPPORTED_EXT)]
+        if paths:
+            self.open_import(paths)
 
     def open_result_image(self, day=None):
         dialog = ResultImageDialog(self, self.data_model, self.settings, self.dark_mode,
@@ -593,6 +620,7 @@ class MainWindow(QMainWindow):
             self.chart_widget.apply_language()
         # Cabecera y tarjetas
         self.image_btn.setText('✨  ' + tr('result_image_title', 'Imagen de resultado'))
+        self.import_btn.setText('📥  ' + tr('import_analyze', 'Importar'))
         self.table_title.setText('📅 ' + tr('week_results', 'Resultados de la semana'))
         self.table_hint.setText(tr('table_hint', 'Doble clic para editar · clic derecho para más opciones'))
     

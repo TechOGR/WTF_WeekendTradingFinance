@@ -1,5 +1,5 @@
 # W-T-F (Weekend Trading Finance) Trading Manager - Requisitos
-# Versión 3.1 - Exportación Excel/CSV/JSON, imagen de resultado IA y resumen semanal
+# Versión 3.2 - Importación y análisis de Excel/CSV, exportación Excel/CSV/JSON, imagen de resultado IA
 
 # Framework GUI
 PyQt5>=5.15.0
@@ -9,8 +9,8 @@ pandas>=1.3.0
 matplotlib>=3.4.0
 numpy>=1.21.0
 
-# Exportación Excel/CSV (Versión 2.1)
-openpyxl>=3.0.9          # Para exportación a Excel (.xlsx)
+# Exportación e importación Excel/CSV
+openpyxl>=3.0.9          # Lectura de Excel (.xlsx) al importar
 xlsxwriter>=3.0.0        # Alternativa para Excel con mejor formato
 
 # Base de datos (SQLite viene incluido con Python)

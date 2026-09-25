@@ -1,4 +1,4 @@
-# 🚀 W-T-F (Weekend Trading Finance) Trading Manager v3.1
+# 🚀 W-T-F (Weekend Trading Finance) Trading Manager v3.2
 
 ## 📊 Tu asistente personal de trading semanal ( xd solo da consejos )
 
@@ -6,7 +6,7 @@
 
 [![Python](https://img.shields.io/badge/Python-3.10+-blue.svg)](https://www.python.org/)
 [![PyQt5](https://img.shields.io/badge/PyQt5-5.15+-green.svg)](https://www.riverbankcomputing.com/software/pyqt/)
-[![Version](https://img.shields.io/badge/Versión-3.1.0-7c5cff.svg)]()
+[![Version](https://img.shields.io/badge/Versión-3.2.0-7c5cff.svg)]()
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Status](https://img.shields.io/badge/Status-Active%20Development-brightgreen.svg)]()
 
@@ -34,6 +34,17 @@
 - 🤖 Frases y consejos míos
 
 ---
+
+## ✨ Novedades de la versión 3.2
+
+- 📥 **Importar y analizar** (botón *Importar* de la cabecera, `Ctrl+I` o arrastrando archivos a la ventana):
+  - Lee **Excel, CSV o JSON**: el historial de operaciones del bróker (p. ej. Quotex: activo, hora, dirección, monto e ingreso), las exportaciones de W-T-F o cualquier tabla con fecha y resultado. El formato se detecta solo.
+  - Combina varios archivos sin duplicar operaciones (mismo ID).
+  - **Resumen**: resultado neto, promedio diario y por operación, tasa de acierto, profit factor, ganancia/pérdida media, mejor/peor día, máximo drawdown, rachas, monto medio, payout medio y acierto mínimo para no perder.
+  - **Gráficos** con tooltips: evolución del balance con drawdown, resultado por día (con línea de promedio), ganadas/perdidas, por hora, por día de la semana, por activo, por dirección y por monto invertido.
+  - Tablas **por día**, **por activo** y de **operaciones**, filtros por período y activo, y *Lectura rápida* con conclusiones.
+  - **Exportar análisis** a Excel con gráficos y **Cargar en la semana**: escribe el neto de cada día en la semana actual.
+- 🧮 **Capital del día rediseñado** (modo edición por capital): parte del balance con el que empezó el día (o del capital semanal), muestra el resultado y el % en vivo y recuerda lo que ya estaba guardado.
 
 ## ✨ Novedades de la versión 3.1
 
@@ -83,7 +94,7 @@
 ## 📦 Instalación
 
 ### 🪟 Opción 1: Instalador para Windows (recomendado)
-1. Descarga `WTF-Setup-3.1.0.exe`.
+1. Descarga `WTF-Setup-3.2.0.exe`.
 2. Ejecútalo: se instala **solo para tu usuario** (sin permisos de administrador) y se registra en *Configuración → Aplicaciones*.
 3. Si ya tenías una versión anterior, el instalador la **actualiza conservando tus datos** (base de datos, semanas, imágenes, exportaciones y API key), con copia de seguridad en `Documentos\W-T-F Backups`.
 
@@ -124,6 +135,7 @@ Resultado: `InstallerSetup/dist/WTF-Setup-<versión>.exe`. La versión sale de `
 3. 📊 **Revisa tu progreso** en el gráfico y el panel de resumen.
 4. ✨ **Genera la imagen del día** con Ctrl+G (o clic derecho sobre una fila).
 5. 📋 **Consulta el resumen semanal** y exporta tus resultados con Ctrl+E.
+6. 📥 **Importa el historial de tu bróker** con Ctrl+I para ver promedios y gráficos de todas tus operaciones.
 
 ### ⌨️ Atajos de teclado
 
@@ -133,6 +145,7 @@ Resultado: `InstallerSetup/dist/WTF-Setup-<versión>.exe`. La versión sale de `
 | `Ctrl+O` | Cargar semana |
 | `Ctrl+G` | Imagen de resultado |
 | `Ctrl+E` | Exportar (último formato usado) |
+| `Ctrl+I` | Importar y analizar Excel/CSV |
 | `Ctrl+,` | Configuración |
 | `Ctrl+D` | Modo oscuro / claro |
 
@@ -163,10 +176,11 @@ W-T-F ( Weekend Trading Finance )/
 │   ├── 📁 ui/
 │   │   ├── 🎞️ animations.py             # Fade-in, brillos, contadores, interruptores
 │   │   ├── 💰 capital_dialog.py         # Capital inicial (bienvenida en el primer arranque)
-│   │   ├── 📅 day_capital_dialog.py     # Resultado del día a partir del capital
+│   │   ├── 🧮 day_capital_dialog.py     # Resultado del día a partir del capital
 │   │   ├── 📝 day_details_dialog.py     # Par de divisas y duración de la sesión
 │   │   ├── 📈 enhanced_chart_widget.py  # Gráfico 2D/3D
 │   │   ├── 📤 export_dialog.py          # Exportación Excel/CSV/JSON con vista previa
+│   │   ├── 📥 import_dialog.py          # Importación y análisis con gráficos
 │   │   ├── 📖 help_dialogs.py           # Instrucciones y Acerca de (redes sociales)
 │   │   ├── 📂 load_week_dialog.py       # Cargar semanas guardadas
 │   │   ├── 🧭 main_menu.py              # Menú principal
@@ -191,6 +205,7 @@ W-T-F ( Weekend Trading Finance )/
 │   └── 📁 utils/
 │       ├── 💡 advice.py                 # Consejos diarios y resumen semanal
 │       ├── 📤 export_manager.py         # Motor de exportación
+│       ├── 📥 import_manager.py         # Lectura de Excel/CSV/JSON y estadísticas
 │       ├── 🌐 i18n.py                   # Traducciones ES / EN
 │       ├── 🖼️ resources.py              # Localización de imágenes
 │       └── ⚙️ settings_store.py         # Configuración persistente, pares y banderas

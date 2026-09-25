@@ -235,7 +235,7 @@ class SettingsDialog(QDialog):
 
     def _page_data(self):
         page, layout = self._page('💾 ' + tr('settings_data', 'Datos y exportación'),
-                                  tr('settings_data_desc', 'Guarda, carga y exporta tus semanas.'))
+                                  tr('settings_data_desc', 'Guarda, carga, exporta e importa tus semanas.'))
         card = self._card(layout, tr('menu_file'))
         self._row(card, tr('save_week'), tr('status_save_week') + '  (Ctrl+S)',
                   self._action(tr('save', 'Guardar'), self.host.save_week, 'primary'))
@@ -268,6 +268,10 @@ class SettingsDialog(QDialog):
         card = self._card(layout, tr('menu_export'))
         self._row(card, tr('export_excel') + ' / CSV / JSON', tr('status_export_excel') + '  (Ctrl+E)',
                   self._action(tr('export', 'Exportar'), self._close_then(self.host.export_data)))
+        self._row(card, '📥 ' + tr('import_title', 'Importar y analizar operaciones'),
+                  tr('import_row_desc', 'Excel o CSV del bróker o de W-T-F: promedios, gráficos y estadísticas.')
+                  + '  (Ctrl+I)',
+                  self._action(tr('import_analyze', 'Importar'), self._close_then(self.host.open_import), 'primary'))
         layout.addStretch()
         return page
 
@@ -444,6 +448,7 @@ class SettingsDialog(QDialog):
         for keys, text in [('Ctrl+S', tr('save_week')), ('Ctrl+O', tr('load_week')),
                            ('Ctrl+G', tr('generate_result_image', 'Generar imagen del resultado')),
                            ('Ctrl+,', tr('settings_title', 'Configuración')), ('Ctrl+E', tr('menu_export')),
+                           ('Ctrl+I', tr('import_title', 'Importar y analizar operaciones')),
                            ('Ctrl+D', tr('dark_mode'))]:
             row = QHBoxLayout()
             k = QLabel(keys)

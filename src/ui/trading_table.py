@@ -150,8 +150,13 @@ class TradingTableWidget(QTableWidget):
         day = self.item(row, COL_DAY).text()
         try:
             from src.ui.day_capital_dialog import DayCapitalDialog
-            dialog = DayCapitalDialog(parent=self)
-            dialog.set_initial_capital(getattr(self.data_model, 'initial_capital', 0.0))
+            initial = float(getattr(self.data_model, 'initial_capital', 0.0) or 0.0)
+            previous = sum(float(self.data_model.data[d].get('amount', 0.0) or 0.0)
+                           for d in self.data_model.days[:row])
+            dialog = DayCapitalDialog(parent=self, day_label=self._day_label(row), week_initial=initial,
+                                      day_start=initial + previous,
+                                      current_amount=self.data_model.data[day].get('amount', 0.0),
+                                      is_dark=self.is_dark)
             if dialog.exec_():
                 profit_loss = dialog.get_profit_loss()
                 self.blockSignals(True)

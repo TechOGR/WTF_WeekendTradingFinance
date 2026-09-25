@@ -32,7 +32,7 @@ FEATURES = {
            ('📤', 'Excel, CSV, JSON export'), ('🌐', 'Español / English')],
 }
 
-TECH = ['Python', 'PyQt5', 'Matplotlib', 'SQLite', 'Pillow']
+TECH = ['Python', 'PyQt5', 'Matplotlib', 'pandas', 'SQLite', 'Pillow']
 
 INSTRUCTIONS = {
     'es': [
@@ -57,6 +57,11 @@ INSTRUCTIONS = {
             'En 3D arrastra el gráfico para rotarlo.',
             'El resumen semanal y el análisis AI están en el panel derecho.',
         ]),
+        ('📥', 'Importar y analizar (Ctrl+I)', [
+            'Pulsa <b>Importar</b> en la cabecera o arrastra archivos a la ventana.',
+            'Acepta el historial de tu bróker (Excel/CSV), exportaciones de W-T-F o cualquier tabla con fecha y resultado.',
+            'Verás promedios, KPIs, gráficos, tablas por día/activo y podrás <b>cargar los totales en la semana</b>.',
+        ]),
     ],
     'en': [
         ('📝', 'Data entry', [
@@ -79,6 +84,11 @@ INSTRUCTIONS = {
         ('📊', 'Analysis', [
             'In 3D, drag the chart to rotate it.',
             'Weekly summary and AI analysis are on the right panel.',
+        ]),
+        ('📥', 'Import & analyze (Ctrl+I)', [
+            'Press <b>Import</b> in the header or drop files onto the window.',
+            'Accepts your broker history (Excel/CSV), W-T-F exports or any table with a date and a result.',
+            'You get averages, KPIs, charts, by-day/by-asset tables and can <b>load the totals into the week</b>.',
         ]),
     ],
 }
@@ -103,7 +113,7 @@ def _shortcuts():
     return [('Ctrl+S', tr('save_week')), ('Ctrl+O', tr('load_week')),
             ('Ctrl+G', tr('generate_result_image', 'Generar imagen del resultado')),
             ('Ctrl+,', tr('settings_title', 'Configuración')), ('Ctrl+E', tr('menu_export')),
-            ('Ctrl+D', tr('dark_mode'))]
+            ('Ctrl+I', tr('import_title', 'Importar y analizar operaciones')), ('Ctrl+D', tr('dark_mode'))]
 
 
 class _BaseHelpDialog(QDialog):
